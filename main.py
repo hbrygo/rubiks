@@ -25,6 +25,7 @@ def get_dominant_color(image, mask):
     return classify_rubiks_color(h_median, s_median, v_median)
 
 def classify_rubiks_color(h, s, v):
+    print("h: ", h)
     """Classify HSV values into Rubik's cube colors"""
     # Adjust these ranges based on your lighting conditions
     if v < 50:  # Very dark
@@ -34,17 +35,17 @@ def classify_rubiks_color(h, s, v):
             return "White"
         else:
             return "Gray"
-    elif h < 10 or h > 170:  # Red range
+    elif 160 <= h and h <= 180:  # Red range (narrowed)
         return "Red"
-    elif 10 <= h < 25:  # Orange range
+    elif 0 <= h and h <= 8:  # Orange range (widened)
         return "Orange"
-    elif 25 <= h < 35:  # Yellow range
+    elif 20 <= h and h <= 35:  # Yellow range (adjusted to avoid overlap)
         return "Yellow"
-    elif 35 <= h < 85:  # Green range
+    elif 35 <= h and h <= 85:  # Green range
         return "Green"
-    elif 85 <= h < 130:  # Blue range
+    elif 85 <= h and h <= 130:  # Blue range
         return "Blue"
-    else:  # 130 <= h <= 170, Purple/Magenta range
+    else:
         return "Purple"
 
 cap = cv.VideoCapture(0)
