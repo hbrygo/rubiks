@@ -246,30 +246,44 @@ class Cube:
         """Rotation horaire d'une face"""
         face_pieces = self.get_face(face_name)
 
-        # apply rotation to each pieces
+        # apply rotation to the face itself
         new = [0]*9
         for i in range(3):
             for j in range(3):
                 new[3*j + (2 - i)] = face_pieces[3*i + j]
 
+        # save new face after rotation
+        start_idx = self.face_names.index(face_name) * 9
+        self.pieces[start_idx:start_idx + 9] = new
+
+        # Now rotate the adjacent edges
         looking_for = set([piece.index for piece in face_pieces])
-        needed_pieces = []
-
-        # get connected faces/pieces
-        connected_face = [self.get_face(adj_face) for adj_face in self.get_adjacent_faces(face_name)]
-        for i in connected_face:
-            for piece in i:
-                if any(conn in looking_for for conn in piece.connections):
-                    needed_pieces.append(piece)
         
-        # applys a rotation to connected pieces
-        tmp_colors = [piece.color for piece in needed_pieces]
-        for i in range(len(needed_pieces)):
-            next_index = (i + 3) % len(needed_pieces)
-            needed_pieces[i].color = tmp_colors[next_index]
-
-        face_pieces = new
-        self.pieces[self.face_names.index(face_name)*9 : self.face_names.index(face_name)*9 + 9] = face_pieces # save new face after rotation
+        # Define which pieces to rotate for each face
+        edge_mapping = {
+            "U": [[9, 10, 11], [18, 19, 20], [27, 28, 29], [38, 37, 36]],  # L, F, R, B
+            "D": [[17, 16, 15], [24, 25, 26], [33, 34, 35], [44, 43, 42]],  # L, F, R, B
+            "F": [[6, 7, 8], [27, 30, 33], [47, 46, 45], [17, 14, 11]],     # U, R, D, L
+            "B": [[2, 1, 0], [9, 12, 15], [51, 52, 53], [35, 32, 29]],      # U, L, D, R
+            "L": [[0, 3, 6], [18, 21, 24], [45, 48, 51], [44, 41, 38]],     # U, F, D, B
+            "R": [[8, 5, 2], [36, 39, 42], [53, 50, 47], [26, 23, 20]],     # U, B, D, F
+        }
+        
+        edges = edge_mapping[face_name]
+        
+        # Save all colors from the edges
+        all_colors = []
+        for edge in edges:
+            for piece_idx in edge:
+                all_colors.append(self.pieces[piece_idx].color)
+        
+        # Rotate: each edge takes colors from the previous edge (shift by 3)
+        num_pieces_per_edge = len(edges[0])
+        for i, edge in enumerate(edges):
+            prev_edge_idx = (i - 1) % len(edges)
+            for j, piece_idx in enumerate(edge):
+                color_idx = prev_edge_idx * num_pieces_per_edge + j
+                self.pieces[piece_idx].color = all_colors[color_idx]
 
     def display(self):
         """Affiche le cube sous forme dépliée"""
@@ -284,6 +298,7 @@ class Cube:
         return f"Cube with {len(self.pieces)} pieces"
 
 # Fonctions de mouvement utilisant la classe Cube
+#################################### Front ####################################
 def front(cube_obj):
     """Rotation F"""
     cube_obj.rotate_face_clockwise("F")
@@ -291,7 +306,6 @@ def front(cube_obj):
 
 def front_reverse(cube_obj):
     """Rotation F'"""
-    # 3 rotations horaires = 1 rotation anti-horaire
     for _ in range(3):
         cube_obj.rotate_face_clockwise("F")
     print("F'")
@@ -302,15 +316,16 @@ def double_front(cube_obj):
         cube_obj.rotate_face_clockwise("F")
     print("F2")
 
+#################################### Back ####################################
 def back(cube_obj):
     """Rotation B"""
-    for _ in range(3):
-        cube_obj.rotate_face_clockwise("B")
+    cube_obj.rotate_face_clockwise("B")
     print("B")
 
 def back_reverse(cube_obj):
     """Rotation B'"""
-    cube_obj.rotate_face_clockwise("B")
+    for _ in range(3):
+        cube_obj.rotate_face_clockwise("B")
     print("B'")
 
 def double_back(cube_obj):
@@ -319,15 +334,16 @@ def double_back(cube_obj):
         cube_obj.rotate_face_clockwise("B")
     print("B2")
 
+#################################### Up ####################################
 def up(cube_obj):
     """Rotation U"""
-    cube_obj.rotate_face_clockwise("U")
+    for _ in range(3):
+        cube_obj.rotate_face_clockwise("U")
     print("U")
 
 def up_reverse(cube_obj):
     """Rotation U'"""
-    for _ in range(3):
-        cube_obj.rotate_face_clockwise("U")
+    cube_obj.rotate_face_clockwise("U")
     print("U'")
 
 def double_up(cube_obj):
@@ -336,6 +352,7 @@ def double_up(cube_obj):
         cube_obj.rotate_face_clockwise("U")
     print("U2")
 
+#################################### Down ####################################
 def down(cube_obj):
     """Rotation D"""
     cube_obj.rotate_face_clockwise("D")
@@ -353,8 +370,8 @@ def double_down(cube_obj):
         cube_obj.rotate_face_clockwise("D")
     print("D2")
 
+#################################### Right ##########################R
 def right(cube_obj):
-    """Rotation R"""
     cube_obj.rotate_face_clockwise("R")
     print("R")
 
@@ -370,14 +387,16 @@ def double_right(cube_obj):
         cube_obj.rotate_face_clockwise("R")
     print("R2")
 
+#################################### Left ####################################
 def left(cube_obj):
     """Rotation L"""
-    for _ in range(3):
-        cube_obj.rotate_face_clockwise("L")
+    cube_obj.rotate_face_clockwise("L")
+    print("L")
 
 def left_reverse(cube_obj):
     """Rotation L'"""
-    cube_obj.rotate_face_clockwise("L")
+    for _ in range(3):
+        cube_obj.rotate_face_clockwise("L")
     print("L'")
 
 def double_left(cube_obj):
@@ -388,11 +407,11 @@ def double_left(cube_obj):
 
 if __name__ == "__main__":
     cube = Cube()
-    cube.display()
+    # cube.display()
     up(cube)
     down(cube)
     right(cube)
-    back(cube)
     left(cube)
     front(cube)
+    back(cube)
     cube.display()
