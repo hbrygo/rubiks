@@ -31,9 +31,10 @@ def draw_cube(size=0.45, colors=None):
     ]
 
     # Définition des faces (ordre des vertices pour chaque face)
+    # Toutes les faces sont ordonnées dans le sens trigonométrique (CCW) vu depuis l'extérieur
     faces = {
         'U': [3, 2, 6, 7],  # Up (y+)
-        'D': [4, 5, 1, 0],  # Down (y-)
+        'D': [0, 1, 5, 4],  # Down (y-)
         'F': [4, 5, 6, 7],  # Front (z+)
         'B': [1, 0, 3, 2],  # Back (z-)
         'R': [5, 1, 2, 6],  # Right (x+)
@@ -85,8 +86,8 @@ class Cubie:
         """Calcule l'index de la pièce dans cube.pieces pour une face donnée"""
         if face_name == 'U' and gy == 1:
             # Face U: indices 0-8
-            row = gz + 1  # gz=1→row=2, gz=0→row=1, gz=-1→row=0
-            col = gx + 1
+            row = 1 - gz  # gz=1→row=2, gz=0→row=1, gz=-1→row=0
+            col = 1 + gx
             return 0 + row * 3 + col
         elif face_name == 'D' and gy == -1:
             # Face D: indices 45-53
@@ -132,9 +133,17 @@ class Cubie:
         for face_name, condition in faces_to_check:
             if condition:
                 idx = self.get_face_index(face_name, gx, gy, gz)
-                if idx is not None and 0 <= idx < len(self.cube_state.pieces):
-                    color_letter = self.cube_state.pieces[idx].color
-                    self.colors[face_name] = COLOR_MAP.get(color_letter, (0.5, 0.5, 0.5))
+                # Vérifier l'index retourné par get_face_index avant d'accéder au cube logique
+                if idx is None:
+                    # Cas improbable mais utile pour le debug
+                    print(f"[update_colors] Warning: get_face_index returned None for face {face_name} grid={self.grid_pos}")
+                    continue
+                if not (0 <= idx < len(self.cube_state.pieces)):
+                    print(f"[update_colors] Warning: index hors gamme pour face {face_name} grid={self.grid_pos} idx={idx}")
+                    continue
+                color_letter = self.cube_state.pieces[idx].color
+                # Utiliser une couleur par défaut si la lettre n'est pas dans COLOR_MAP
+                self.colors[face_name] = COLOR_MAP.get(color_letter, (0.5, 0.5, 0.5))
 
     def draw(self):
         glPushMatrix()
@@ -271,6 +280,23 @@ def main():
             if angle_done >= 90:
                 rotating = False
                 
+                # DEBUG: Afficher l'état AVANT la mise à jour
+                print("\n" + "="*60)
+                print(f"ROTATION TERMINÉE - Direction: {rotation_direction}")
+                print("="*60)
+                
+                # Afficher la face U AVANT la mise à jour des positions
+                print("\n--- FACE U AVANT mise à jour grid_pos ---")
+                u_cubies_before = sorted([c for c in cubies if c.grid_pos[1] == 1], 
+                                        key=lambda x: (-x.grid_pos[2], x.grid_pos[0]))
+                for i, c in enumerate(u_cubies_before):
+                    if i % 3 == 0:
+                        print()
+                    idx = c.get_face_index('U', c.grid_pos[0], c.grid_pos[1], c.grid_pos[2])
+                    color = cube_state.pieces[idx].color if idx is not None else '?'
+                    print(f"[{color} pos:{c.pos[0]:5.2f},{c.pos[1]:5.2f},{c.pos[2]:5.2f} grid:{c.grid_pos}]", end=" ")
+                print()
+                
                 # D'abord, mettre à jour les grid_pos après la rotation 3D
                 for c in cubies:
                     # Arrondir les positions pour éviter les erreurs de float
@@ -288,7 +314,22 @@ def main():
                     # Réinitialiser les rotations locales
                     c.rot = [0, 0, 0]
                 
+                # Afficher la face U APRÈS la mise à jour des positions
+                print("\n--- FACE U APRÈS mise à jour grid_pos (AVANT rotation logique) ---")
+                u_cubies_after = sorted([c for c in cubies if c.grid_pos[1] == 1], 
+                                       key=lambda x: (-x.grid_pos[2], x.grid_pos[0]))
+                for i, c in enumerate(u_cubies_after):
+                    if i % 3 == 0:
+                        print()
+                    idx = c.get_face_index('U', c.grid_pos[0], c.grid_pos[1], c.grid_pos[2])
+                    color = cube_state.pieces[idx].color if idx is not None else '?'
+                    print(f"[{color} idx:{idx:2d} grid:{c.grid_pos}]", end=" ")
+                print()
+                
                 # Ensuite, appliquer la rotation au cube logique
+                print("\n--- État du cube AVANT rotation logique ---")
+                print(f"Face U (indices 0-8): {[cube_state.pieces[i].color for i in range(9)]}")
+                
                 if rotation_direction == 1:
                     cube_state.rotate_face_clockwise("R")
                 elif rotation_direction == 2:
@@ -303,9 +344,22 @@ def main():
                 elif rotation_direction == 6:
                     cube_state.rotate_face_clockwise("B")
                 
+                print("\n--- État du cube APRÈS rotation logique ---")
+                print(f"Face U (indices 0-8): {[cube_state.pieces[i].color for i in range(9)]}")
+                
                 # Enfin, mettre à jour les couleurs de tous les cubies depuis le cube logique
                 for c in cubies:
                     c.update_colors()
+                
+                # Afficher la face U APRÈS la mise à jour des couleurs
+                print("\n--- FACE U FINALE (après update_colors) ---")
+                for i, c in enumerate(u_cubies_after):
+                    if i % 3 == 0:
+                        print()
+                    idx = c.get_face_index('U', c.grid_pos[0], c.grid_pos[1], c.grid_pos[2])
+                    color = cube_state.pieces[idx].color if idx is not None else '?'
+                    print(f"[{color}]", end=" ")
+                print("\n" + "="*60 + "\n")
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
