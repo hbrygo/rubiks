@@ -75,17 +75,41 @@ class Cubie:
             'L': 'O' if x == -1 else None,
         }
 
-    def rotate_faces(self, axis, layer=1):
-        f = self.faces
-        # si layer == -1, effectuer la rotation dans le sens inverse (3 fois la rotation"positive")
-        steps = 1 if layer == 1 else 3
-        for _ in range(steps):
+    def rotate_faces(self, axis, direction=1):
+        # rotate the face normals by ±90° around the given axis and reassign faces
+        old = self.faces.copy()
+        new = {k: None for k in old}
+        angle = math.radians(90 * direction)
+        s = math.sin(angle)
+        c = math.cos(angle)
+
+        def rot(vec):
+            x, y, z = vec
             if axis == 'x':
-                f['U'], f['B'], f['D'], f['F'] = f['F'], f['U'], f['B'], f['D']
-            elif axis == 'y':
-                f['F'], f['R'], f['B'], f['L'] = f['L'], f['F'], f['R'], f['B']
-            elif axis == 'z':
-                f['U'], f['R'], f['D'], f['L'] = f['L'], f['U'], f['R'], f['D']
+                return (x, y * c - z * s, y * s + z * c)
+            if axis == 'y':
+                return (x * c + z * s, y, -x * s + z * c)
+            if axis == 'z':
+                return (x * c - y * s, x * s + y * c, z)
+
+        normals = {
+            'U': (0, 1, 0), 'D': (0, -1, 0),
+            'F': (0, 0, 1), 'B': (0, 0, -1),
+            'R': (1, 0, 0), 'L': (-1, 0, 0),
+        }
+
+        for label, vec in normals.items():
+            rx, ry, rz = rot(vec)
+            # determine target face by the dominant coordinate
+            if abs(rx) > 0.5:
+                tgt = 'R' if rx > 0 else 'L'
+            elif abs(ry) > 0.5:
+                tgt = 'U' if ry > 0 else 'D'
+            else:
+                tgt = 'F' if rz > 0 else 'B'
+            new[tgt] = old[label]
+
+        self.faces = new
 
     def draw(self):
         glPushMatrix()
@@ -99,8 +123,8 @@ class Cubie:
 # ======================================================
 # ROTATION D'UNE FACE
 # ======================================================
-def rotate_face(cubies, axis, layer, step):
-    rad = math.radians(step)
+def rotate_face(cubies, axis, layer, step, direction=1):
+    rad = math.radians(step * direction)
     idx = 'xyz'.index(axis)
 
     for c in cubies:
@@ -110,17 +134,17 @@ def rotate_face(cubies, axis, layer, step):
             if axis == 'x':
                 c.pos[1] = y * math.cos(rad) - z * math.sin(rad)
                 c.pos[2] = y * math.sin(rad) + z * math.cos(rad)
-                c.rot[0] += step
+                c.rot[0] += step * direction
 
             elif axis == 'y':
                 c.pos[0] = x * math.cos(rad) + z * math.sin(rad)
                 c.pos[2] = -x * math.sin(rad) + z * math.cos(rad)
-                c.rot[1] += step
+                c.rot[1] += step * direction
 
             elif axis == 'z':
                 c.pos[0] = x * math.cos(rad) - y * math.sin(rad)
                 c.pos[1] = x * math.sin(rad) + y * math.cos(rad)
-                c.rot[2] += step
+                c.rot[2] += step * direction
 
 # ======================================================
 # MAIN
@@ -147,6 +171,7 @@ def main():
     rotating = False
     axis = layer = None
     angle = 0
+    direction = 1
 
     while True:
         clock.tick(60)
@@ -155,18 +180,22 @@ def main():
                 pygame.quit()
                 return
             if e.type == KEYDOWN and not rotating:
-                if e.key == K_r: axis, layer = 'x', 1
-                if e.key == K_l: axis, layer = 'x', -1
-                if e.key == K_u: axis, layer = 'y', 1
-                if e.key == K_d: axis, layer = 'y', -1
-                if e.key == K_f: axis, layer = 'z', 1
-                if e.key == K_b: axis, layer = 'z', -1
-                if axis:
+                # avoid reusing a stale `axis` when only Shift is pressed
+                axis = layer = None
+                # détecter shift pour la version prime (inverse)
+                dir_key = -1 if pygame.key.get_mods() & KMOD_SHIFT else 1
+                if e.key == K_r: axis, layer, direction = 'x', 1, -dir_key
+                if e.key == K_l: axis, layer, direction = 'x', -1, dir_key
+                if e.key == K_u: axis, layer, direction = 'y', 1, -dir_key
+                if e.key == K_d: axis, layer, direction = 'y', -1, dir_key
+                if e.key == K_f: axis, layer, direction = 'z', 1, -dir_key
+                if e.key == K_b: axis, layer, direction = 'z', -1, dir_key
+                if axis is not None:
                     rotating = True
                     angle = 0
 
         if rotating:
-            rotate_face(cubies, axis, layer, ROT_STEP)
+            rotate_face(cubies, axis, layer, ROT_STEP, direction)
             angle += ROT_STEP
             if angle >= 90:
                 rotating = False
@@ -174,7 +203,9 @@ def main():
                     c.pos = [round(v / CUBE_GAP) * CUBE_GAP for v in c.pos]
                     c.rot = [0, 0, 0]
                     if round(c.pos['xyz'.index(axis)] / CUBE_GAP) == layer:
-                        c.rotate_faces(axis, layer)
+                        c.rotate_faces(axis, direction)
+                # clear pending axis/layer so subsequent modifier presses don't restart the last move
+                axis = layer = None
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         for c in cubies:
