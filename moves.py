@@ -76,13 +76,76 @@ class Piece:
         self.piece_type = piece_type  # "corner", "edge", "center"
         self.original_index = index  # Pour pouvoir reset le cube
         
+        # État de la pièce
+        self.is_solved = True  # Au début, toutes les pièces sont résolues
+        self.move_history = []  # Historique des mouvements affectant cette pièce
+        
         # ID unique pour le debugging
         self.unique_id = f"{self.piece_type}_{index}" if piece_type else f"piece_{index}"
+        
+        # # Position 3D (x, y, z) dans l'espace du cube
+        # self.position_3d = position_3d or self._calculate_3d_position(index)
+        # self.original_position_3d = self.position_3d.copy()
+        
+        # # Orientation - angles de rotation en degrés autour de chaque axe
+        # self.orientation = {"x": 0, "y": 0, "z": 0}
+        # self.original_orientation = self.orientation.copy()
+        
+    # def _calculate_3d_position(self, index):
+    #     """Calcule la position 3D basée sur l'index de la pièce"""
+    #     face_idx = index // 9
+    #     pos_in_face = index % 9
+    #     row = pos_in_face // 3
+    #     col = pos_in_face % 3
+        
+    #     # Coordonnées relatives à chaque face (centre du cube = 0,0,0)
+    #     face_positions = {
+    #         0: (col-1, 1, 1-row),    # U (Up) - face du haut
+    #         1: (1, row-1, 1-col),    # R (Right) - face de droite
+    #         2: (col-1, row-1, 1),    # F (Front) - face avant
+    #         3: (-1, row-1, col-1),   # L (Left) - face de gauche
+    #         4: (1-col, row-1, -1),   # B (Back) - face arrière (inversée horizontalement)
+    #         5: (col-1, -1, row-1),   # D (Down) - face du bas
+    #     }
+        
+    #     x, y, z = face_positions[face_idx]
+    #     return np.array([x, y, z], dtype=float)
     
     def add_connection(self, connection_index):
         """Ajouter une connexion à cette pièce"""
         if connection_index not in self.connections:
             self.connections.append(connection_index)
+    
+    def rotate_orientation(self, axis, angle):
+        """Modifie l'orientation de la pièce"""
+        if axis in self.orientation:
+            self.orientation[axis] = (self.orientation[axis] + angle) % 360
+            self.check_solved_state()
+    
+    def move_to_position(self, new_position):
+        """Déplace la pièce vers une nouvelle position 3D"""
+        self.position_3d = np.array(new_position)
+        self.check_solved_state()
+    
+    def add_move_to_history(self, move_notation):
+        """Ajoute un mouvement à l'historique"""
+        self.move_history.append(move_notation)
+    
+    def check_solved_state(self):
+        """Vérifie si la pièce est dans son état résolu"""
+        position_match = np.allclose(self.position_3d, self.original_position_3d, atol=1e-6)
+        orientation_match = all(
+            abs(self.orientation[axis] - self.original_orientation[axis]) < 1e-6 
+            for axis in self.orientation
+        )
+        self.is_solved = position_match and orientation_match
+    
+    def reset_to_original(self):
+        """Remet la pièce dans son état original"""
+        self.position_3d = self.original_position_3d.copy()
+        self.orientation = self.original_orientation.copy()
+        self.is_solved = True
+        self.move_history.clear()
     
     def get_current_face(self):
         """Retourne la face sur laquelle se trouve actuellement la pièce"""
@@ -118,13 +181,16 @@ class Piece:
             "position_3d": self.position_3d.tolist(),
             "orientation": self.orientation,
             "current_face": self.get_current_face(),
+            "is_solved": self.is_solved,
+            # self.orientation[axis] = (self.orientation[axis] + angle) % 360
             "type": self.piece_type,
             "move_count": len(self.move_history),
             "connections": self.connections
         }
     
     def __str__(self):
-        return f"Piece({self.unique_id}, color={self.color})"
+        solved_status = "✓" if self.is_solved else "✗"
+        return f"Piece({self.unique_id}, color={self.color}, solved={solved_status})"
     
     def __repr__(self):
         return self.__str__()
@@ -186,7 +252,7 @@ class Cube:
             for j in range(3):
                 new[3*j + (2 - i)] = face_pieces[3*i + j]
 
-        # save new face after rotationworst os linux
+        # save new face after rotation
         start_idx = self.face_names.index(face_name) * 9
         self.pieces[start_idx:start_idx + 9] = new
 
@@ -296,7 +362,6 @@ def down_reverse(cube_obj):
     """Rotation D'"""
     for _ in range(3):
         cube_obj.rotate_face_clockwise("D")
-
     print("D'")
 
 def double_down(cube_obj):
