@@ -1,4 +1,3 @@
-import numpy as np
 from connection import connections_map
 
 class Piece:
@@ -20,9 +19,7 @@ class Piece:
     def check_solved_state(self):
         """Check if the piece is in its solved state"""
         self.is_solved = (self.index == self.original_index)
-        self.original_position_3d = self.position_3d.copy()
         self.original_orientation = self.orientation.copy()
-        self.is_solved = False
 
     def reset_to_original(self):
         """Reset the piece to its original state"""
