@@ -3,10 +3,9 @@ from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GLU import *
 import math
+import sys
+from main import allowed_moves
 
-# ======================================================
-# CONFIG
-# ======================================================
 CUBE_GAP = 1.1
 ROT_STEP = 3
 
@@ -20,9 +19,9 @@ COLOR_MAP = {
     None: (0.25, 0.25, 0.25)
 }
 
-# ======================================================
-# DESSIN D'UN CUBIE
-# ======================================================
+WINDOW_HEIGHT = 600
+WINDOW_WIDTH = 800
+
 def draw_cube(size=0.45, colors=None):
     vertices = [
         (-size,-size,-size),(size,-size,-size),
@@ -57,15 +56,11 @@ def draw_cube(size=0.45, colors=None):
             glVertex3fv(vertices[v])
     glEnd()
 
-# ======================================================
-# CUBIE
-# ======================================================
 class Cubie:
     def __init__(self, x, y, z):
         self.pos = [x, y, z]
         self.rot = [0, 0, 0]
 
-        # Chaque cubie a TOUJOURS 6 faces
         self.faces = {
             'U': 'W' if y == 1 else None,
             'D': 'Y' if y == -1 else None,
@@ -76,7 +71,6 @@ class Cubie:
         }
 
     def rotate_faces(self, axis, direction=1):
-        # rotate the face normals by ±90° around the given axis and reassign faces
         old = self.faces.copy()
         new = {k: None for k in old}
         angle = math.radians(90 * direction)
@@ -100,7 +94,6 @@ class Cubie:
 
         for label, vec in normals.items():
             rx, ry, rz = rot(vec)
-            # determine target face by the dominant coordinate
             if abs(rx) > 0.5:
                 tgt = 'R' if rx > 0 else 'L'
             elif abs(ry) > 0.5:
@@ -120,9 +113,6 @@ class Cubie:
         draw_cube(colors=self.faces)
         glPopMatrix()
 
-# ======================================================
-# ROTATION D'UNE FACE
-# ======================================================
 def rotate_face(cubies, axis, layer, step, direction=1):
     rad = math.radians(step * direction)
     idx = 'xyz'.index(axis)
@@ -146,13 +136,10 @@ def rotate_face(cubies, axis, layer, step, direction=1):
                 c.pos[1] = x * math.sin(rad) + y * math.cos(rad)
                 c.rot[2] += step * direction
 
-# ======================================================
-# MAIN
-# ======================================================
-def main():
+def main(shuffle):
     pygame.init()
-    pygame.display.set_mode((800, 600), DOUBLEBUF | OPENGL)
-    gluPerspective(45, 800/600, 0.1, 50)
+    pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), DOUBLEBUF | OPENGL)
+    gluPerspective(45, WINDOW_WIDTH/WINDOW_HEIGHT, 0.1, 50)
     glTranslatef(0, 0, -10)
     glRotatef(30, 1, 0, 0)
     glRotatef(-45, 0, 1, 0)
@@ -175,11 +162,49 @@ def main():
 
     while True:
         clock.tick(60)
+
+        if shuffle.strip() and not rotating:
+            moves = shuffle.split()
+            
+            base_move = moves.pop(0)
+            shuffle = " ".join(moves)
+            if base_move.endswith("2"):
+                base_move = base_move[:-1]
+                shuffle = base_move + " " + shuffle
+
+            if base_move == "R":
+                axis, layer, direction = 'x', 1, -1
+            elif base_move == "R'":
+                axis, layer, direction = 'x', 1, 1
+            elif base_move == "L":
+                axis, layer, direction = 'x', -1, 1
+            elif base_move == "L'":
+                axis, layer, direction = 'x', -1, -1
+            elif base_move == "U":
+                axis, layer, direction = 'y', 1, -1
+            elif base_move == "U'":
+                axis, layer, direction = 'y', 1, 1
+            elif base_move == "D":
+                axis, layer, direction = 'y', -1, 1
+            elif base_move == "D'":
+                axis, layer, direction = 'y', -1, -1
+            elif base_move == "F":
+                axis, layer, direction = 'z', 1, -1
+            elif base_move == "F'":
+                axis, layer, direction = 'z', 1, 1
+            elif base_move == "B":
+                axis, layer, direction = 'z', -1, 1
+            elif base_move == "B'":
+                axis, layer, direction = 'z', -1, -1
+
+            rotating = True
+            angle = 0
+    
         for e in pygame.event.get():
             if e.type == QUIT:
                 pygame.quit()
                 return
-            if e.type == KEYDOWN and not rotating:
+            if e.type == KEYDOWN and not rotating and not shuffle:
                 # avoid reusing a stale `axis` when only Shift is pressed
                 axis = layer = None
                 # détecter shift pour la version prime (inverse)
@@ -193,6 +218,9 @@ def main():
                 if axis is not None:
                     rotating = True
                     angle = 0
+                if e.key == K_q or e.key == K_ESCAPE:
+                    pygame.quit()
+                    return
 
         if rotating:
             rotate_face(cubies, axis, layer, ROT_STEP, direction)
@@ -213,4 +241,15 @@ def main():
         pygame.display.flip()
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 2:
+        print("Error: Too many arguments.")
+        print("Usage: python3 bonus_3D.py \"R F B2 F'\"")
+        print("Or")
+        print("Usage: python3 bonus_3D.py")
+        sys.exit(1)
+    shuffle = sys.argv[1] if len(sys.argv) == 2 else ""
+    invalid_moves = [move for move in shuffle.split() if move not in allowed_moves]
+    if invalid_moves:
+        print(f"Invalid moves found: {', '.join(invalid_moves)}")
+        sys.exit(1)
+    main(shuffle)
