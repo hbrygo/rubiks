@@ -17,8 +17,9 @@ def main():
         print("Usage: python3 main.py \"R F B2 F'\"")
         sys.exit(1)
     shuffle = sys.argv[1]
-    if [move for move in shuffle.split() if move not in allowed_moves] != []:
-        print(f"Invalid move: {move}")
+    invalid_moves = [move for move in shuffle.split() if move not in allowed_moves]
+    if invalid_moves:
+        print(f"Invalid moves found: {', '.join(invalid_moves)}")
         sys.exit(1)
 
 if __name__ == "__main__":

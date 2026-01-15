@@ -13,58 +13,39 @@ class Piece:
         self.unique_id = f"{self.piece_type}_{index}" if piece_type else f"piece_{index}"
     
     def add_connection(self, connection_index):
-        """Ajouter une connexion à cette pièce"""
+        """Add a connection to another piece"""
         if connection_index not in self.connections:
             self.connections.append(connection_index)
     
-    def rotate_orientation(self, axis, angle):
-        """Modifie l'orientation de la pièce"""
-        if axis in self.orientation:
-            self.orientation[axis] = (self.orientation[axis] + angle) % 360
-            self.check_solved_state()
-    
-    def move_to_position(self, new_position):
-        """Déplace la pièce vers une nouvelle position 3D"""
-        self.position_3d = np.array(new_position)
-        self.check_solved_state()
+    def check_solved_state(self):
+        """Check if the piece is in its solved state"""
+        self.is_solved = (self.index == self.original_index)
+        self.original_position_3d = self.position_3d.copy()
+        self.original_orientation = self.orientation.copy()
+        self.is_solved = False
 
     def reset_to_original(self):
-        """Remet la pièce dans son état original"""
-        self.position_3d = self.original_position_3d.copy()
+        """Reset the piece to its original state"""
         self.orientation = self.original_orientation.copy()
-    
-    def get_current_face(self):
-        """Retourne la face sur laquelle se trouve actuellement la pièce"""
-        # Trouve quelle face est la plus proche de la position actuelle
-        x, y, z = self.position_3d
-        
-        if abs(y - 1) < 0.1:      return "U"  # Up
-        elif abs(y + 1) < 0.1:    return "D"  # Down
-        elif abs(x - 1) < 0.1:    return "R"  # Right
-        elif abs(x + 1) < 0.1:    return "L"  # Left
-        elif abs(z - 1) < 0.1:    return "F"  # Front
-        elif abs(z + 1) < 0.1:    return "B"  # Back
-        else:                     return "Unknown"
-    
+
     def is_corner(self):
-        """Vérifie si c'est une pièce de coin (3 connexions)"""
+        """Check if it's a corner piece (3 connections)"""
         return len(self.connections) == 3
-    
+
     def is_edge(self):
-        """Vérifie si c'est une pièce d'arête (2 connexions)"""
+        """Check if it's an edge piece (2 connections)"""
         return len(self.connections) == 2
-    
+
     def is_center(self):
-        """Vérifie si c'est une pièce centrale (0 connexions pour les centres)"""
+        """Check if it's a center piece (0 connections for centers)"""
         return len(self.connections) == 0
     
     def get_detailed_info(self):
-        """Retourne des informations détaillées sur la pièce"""
+        """Return detailed information about the piece"""
         return {
             "id": self.unique_id,
             "index": self.index,
             "color": self.color,
-            "position_3d": self.position_3d.tolist(),
             "orientation": self.orientation,
             "current_face": self.get_current_face(),
             "type": self.piece_type,
@@ -137,9 +118,6 @@ class Cube:
         # save new face after rotation
         start_idx = self.face_names.index(face_name) * 9
         self.pieces[start_idx:start_idx + 9] = new
-
-        # Now rotate the adjacent edges
-        looking_for = set([piece.index for piece in face_pieces])
         
         # Define which pieces to rotate for each face
         edge_mapping = {
