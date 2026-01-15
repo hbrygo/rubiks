@@ -4,9 +4,13 @@ import random
 
 def generate_shuffle(length):
     shuffle = []
+    previous_move = ""
     for i in range(length):
         move = random.choice(list(allowed_moves))
+        while move[0] == previous_move:
+            move = random.choice(list(allowed_moves))
         shuffle.append(move)
+        previous_move = move[0]
     return " ".join(shuffle)
 
 if __name__ == "__main__":
