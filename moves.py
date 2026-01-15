@@ -73,7 +73,7 @@ def double_down(cube_obj):
         cube_obj.rotate_face_clockwise("D")
     print("D2")
 
-#################################### Right ##########################R
+#################################### Right ####################################
 def right(cube_obj):
     cube_obj.rotate_face_clockwise("R")
     print("R")
