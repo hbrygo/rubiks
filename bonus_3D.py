@@ -6,9 +6,6 @@ import math
 import sys
 from main import allowed_moves
 
-# ======================================================
-# CONFIG
-# ======================================================
 CUBE_GAP = 1.1
 ROT_STEP = 3
 
@@ -22,9 +19,9 @@ COLOR_MAP = {
     None: (0.25, 0.25, 0.25)
 }
 
-# ======================================================
-# DESSIN D'UN CUBIE
-# ======================================================
+WINDOW_HEIGHT = 600
+WINDOW_WIDTH = 800
+
 def draw_cube(size=0.45, colors=None):
     vertices = [
         (-size,-size,-size),(size,-size,-size),
@@ -59,15 +56,11 @@ def draw_cube(size=0.45, colors=None):
             glVertex3fv(vertices[v])
     glEnd()
 
-# ======================================================
-# CUBIE
-# ======================================================
 class Cubie:
     def __init__(self, x, y, z):
         self.pos = [x, y, z]
         self.rot = [0, 0, 0]
 
-        # Chaque cubie a TOUJOURS 6 faces
         self.faces = {
             'U': 'W' if y == 1 else None,
             'D': 'Y' if y == -1 else None,
@@ -78,7 +71,6 @@ class Cubie:
         }
 
     def rotate_faces(self, axis, direction=1):
-        # rotate the face normals by ±90° around the given axis and reassign faces
         old = self.faces.copy()
         new = {k: None for k in old}
         angle = math.radians(90 * direction)
@@ -102,7 +94,6 @@ class Cubie:
 
         for label, vec in normals.items():
             rx, ry, rz = rot(vec)
-            # determine target face by the dominant coordinate
             if abs(rx) > 0.5:
                 tgt = 'R' if rx > 0 else 'L'
             elif abs(ry) > 0.5:
@@ -122,9 +113,6 @@ class Cubie:
         draw_cube(colors=self.faces)
         glPopMatrix()
 
-# ======================================================
-# ROTATION D'UNE FACE
-# ======================================================
 def rotate_face(cubies, axis, layer, step, direction=1):
     rad = math.radians(step * direction)
     idx = 'xyz'.index(axis)
@@ -148,13 +136,10 @@ def rotate_face(cubies, axis, layer, step, direction=1):
                 c.pos[1] = x * math.sin(rad) + y * math.cos(rad)
                 c.rot[2] += step * direction
 
-# ======================================================
-# MAIN
-# ======================================================
 def main(shuffle):
     pygame.init()
-    pygame.display.set_mode((800, 600), DOUBLEBUF | OPENGL)
-    gluPerspective(45, 800/600, 0.1, 50)
+    pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), DOUBLEBUF | OPENGL)
+    gluPerspective(45, WINDOW_WIDTH/WINDOW_HEIGHT, 0.1, 50)
     glTranslatef(0, 0, -10)
     glRotatef(30, 1, 0, 0)
     glRotatef(-45, 0, 1, 0)
@@ -178,7 +163,7 @@ def main(shuffle):
     while True:
         clock.tick(60)
 
-        if shuffle and not rotating:
+        if shuffle.strip() and not rotating:
             moves = shuffle.split()
             
             base_move = moves.pop(0)
@@ -256,8 +241,8 @@ def main(shuffle):
         pygame.display.flip()
 
 if __name__ == "__main__":
-    shuffle = ""
     if len(sys.argv) > 2:
+        print("Error: Too many arguments.")
         print("Usage: python3 bonus_3D.py \"R F B2 F'\"")
         print("Or")
         print("Usage: python3 bonus_3D.py")

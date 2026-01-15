@@ -64,7 +64,6 @@ def down_reverse(cube_obj):
     """Rotation D'"""
     for _ in range(3):
         cube_obj.rotate_face_clockwise("D")
-
     print("D'")
 
 def double_down(cube_obj):
