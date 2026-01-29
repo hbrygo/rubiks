@@ -1,2 +1,2 @@
 numpy>=2.0.2
-kociemba>=1.2.1
+opencv-python>=4.5.0
