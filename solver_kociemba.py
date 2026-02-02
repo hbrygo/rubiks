@@ -1200,7 +1200,10 @@ class Search:
                 self.minDistPhase1[n + 1] = 10
                 if n == depth_phase1 - 1:
                     # Lancer phase 2
-                    s = self._phase2(depth_phase1, max_depth)
+                    s = self._phase2(depth_phase1, max_depth, t_start, timeout)
+                    if s == -2:
+                        # Timeout dans phase 2
+                        return "Error: timeout"
                     if s >= 0:
                         if (s == depth_phase1 or
                             (self.ax[depth_phase1 - 1] != self.ax[depth_phase1] and
@@ -1209,7 +1212,7 @@ class Search:
                                 return self._solution_string(s, depth_phase1)
                             return self._solution_string(s)
     
-    def _phase2(self, depth_phase1, max_depth):
+    def _phase2(self, depth_phase1, max_depth, t_start, timeout):
         """Phase 2: résolution finale dans G1"""
         max_depth_phase2 = min(10, max_depth - depth_phase1)
         
@@ -1238,6 +1241,14 @@ class Search:
             self.UBtoDF[i + 1] = self.tables.UBtoDF_move[self.UBtoDF[i]][mv]
         
         # Fusionner URtoUL et UBtoDF
+        # Attention : merge_URtoUL_UBtoDF est une table 336x336 (sous-ensemble phase 2).
+        # Si les coordonnées URtoUL / UBtoDF sortent de ce sous-ensemble, cette branche
+        # n'est pas valide pour la phase 2.
+        rows_merge = len(self.tables.merge_URtoUL_UBtoDF)
+        cols_merge = len(self.tables.merge_URtoUL_UBtoDF[0]) if rows_merge > 0 else 0
+        if (self.URtoUL[depth_phase1] >= rows_merge or
+            self.UBtoDF[depth_phase1] >= cols_merge):
+            return -1
         self.URtoDF[depth_phase1] = self.tables.merge_URtoUL_UBtoDF[
             self.URtoUL[depth_phase1]][self.UBtoDF[depth_phase1]]
         
@@ -1281,6 +1292,10 @@ class Search:
                         while True:
                             self.ax[n] += 1
                             if self.ax[n] > 5:
+                                # Vérifier timeout dans phase 2
+                                if time.time() - t_start > timeout:
+                                    return -2  # Timeout
+                                
                                 if n == depth_phase1:
                                     if depth_phase2 >= max_depth_phase2:
                                         return -1
