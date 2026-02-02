@@ -24,7 +24,6 @@ Algorithme Two-Phase:
 Basé sur les travaux de Herbert Kociemba.
 """
 
-import array
 import time
 import pickle
 import os

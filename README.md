@@ -23,7 +23,6 @@ python3 solver_kociemba.py
 ```
 rubiks/
 ├── solver_kociemba.py      # Solveur Kociemba (PRINCIPAL)
-├── cube.py                  # Représentation du cube (interface)
 ├── kociemba_tables.pkl      # Cache des tables (généré automatiquement)
 ├── requirement.txt          # Dépendances (aucune pour le solveur)
 └── README.md
@@ -92,7 +91,7 @@ Pré-charge les tables de pruning. Utile pour éviter le délai au premier appel
 
 ```bash
 # Lancer les tests complets
-python3 test_comprehensive.py
+python3 test_kociemba.py
 ```
 
 ## 📚 Algorithme Two-Phase

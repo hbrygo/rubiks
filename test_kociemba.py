@@ -3,7 +3,7 @@
 
 import time
 import random
-from solver_kociemba import CubieCube, FaceCube, MOVE_CUBE, solve
+from solver_kociemba import CubieCube, MOVE_CUBE, solve
 
 # Noms des mouvements
 MOVE_NAMES = ["U", "R", "F", "D", "L", "B"]
@@ -91,7 +91,6 @@ def test_scramble(name: str, scramble: str, timeout: float = 120.0) -> dict:
         
         # Vérifier la solution
         verify_cc = apply_moves(scramble)
-        verify_cc2 = apply_moves(solution)
         # Appliquer la solution au cube scramblé
         for move in solution.split():
             if not move:
