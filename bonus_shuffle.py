@@ -25,4 +25,4 @@ if __name__ == "__main__":
         sys.exit(1)
 
     shuffle = generate_shuffle(shuffle_length)
-    print(f"Generated shuffle: {shuffle}")
+    print(f"{shuffle}")
