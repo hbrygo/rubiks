@@ -1,23 +1,32 @@
 import sys
 import time
 import random
+import argparse
 from solver_kociemba import CubieCube, MOVE_CUBE, solve
+from solver_kociemba_fast import solve_fast
 from test_kociemba import apply_moves, MOVE_NAMES
 
 allowed_moves = {"R","R'","R2","L","L'","L2","U","U'","U2",
            "D","D'","D2","F","F'","F2","B","B'","B2"}
 
 def main():
-    if len(sys.argv) != 2:
-        print("Usage: python3 main.py \"R F B2 F'\"")
-        sys.exit(1)
-    shuffle = sys.argv[1]
+    parser = argparse.ArgumentParser(description="Rubik's Cube Solver")
+    parser.add_argument("shuffle", help="Séquence de mélange (ex: \"R F B2 F'\")")
+    parser.add_argument("--fast", action="store_true", 
+                        help="Mode rapide: première solution trouvée (non-optimale)")
+    parser.add_argument("--optimal", action="store_true", 
+                        help="Mode optimal: solution la plus courte (défaut)")
+    args = parser.parse_args()
+    
+    shuffle = args.shuffle
+    use_fast = args.fast and not args.optimal  # --optimal a priorité
     invalid_moves = [move for move in shuffle.split() if move not in allowed_moves]
     if invalid_moves:
         print(f"Invalid moves found: {', '.join(invalid_moves)}")
         sys.exit(1)
 
     print(f"Shuffle: {shuffle}")
+    print(f"Mode: {'FAST (première solution)' if use_fast else 'OPTIMAL (solution la plus courte)'}")
     cc = apply_moves(shuffle)
     fc = cc.to_facecube()
     cubestring = fc.to_string()
@@ -26,7 +35,10 @@ def main():
     # Résoudre
     start = time.time()
     try:
-        solution = solve(cubestring, max_depth=24, timeout=3)
+        if use_fast:
+            solution = solve_fast(cubestring, max_depth=50, timeout=10)
+        else:
+            solution = solve(cubestring, max_depth=24, timeout=3)
         elapsed = time.time() - start
         
         if solution.startswith("Error"):

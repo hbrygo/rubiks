@@ -3,7 +3,9 @@
 
 import time
 import random
+import argparse
 from solver_kociemba import CubieCube, MOVE_CUBE, solve
+from solver_kociemba_fast import solve_fast
 
 # Noms des mouvements
 MOVE_NAMES = ["U", "R", "F", "D", "L", "B"]
@@ -60,10 +62,11 @@ def generate_random_scramble(n_moves: int) -> str:
     return " ".join(moves)
 
 
-def test_scramble(name: str, scramble: str, timeout: float = 120.0) -> dict:
+def test_scramble(name: str, scramble: str, timeout: float = 120.0, use_fast: bool = False) -> dict:
     """Teste un scramble et retourne les résultats"""
+    mode_str = "FAST" if use_fast else "OPTIMAL"
     print(f"\n{'=' * 70}")
-    print(f"TEST: {name}")
+    print(f"TEST: {name} [{mode_str}]")
     print(f"{'=' * 70}")
     print(f"Scramble: {scramble}")
     print(f"Nombre de mouvements: {len(scramble.split())}")
@@ -77,7 +80,10 @@ def test_scramble(name: str, scramble: str, timeout: float = 120.0) -> dict:
     # Résoudre
     start = time.time()
     try:
-        solution = solve(cubestring, max_depth=24, timeout=timeout)
+        if use_fast:
+            solution = solve_fast(cubestring, max_depth=50, timeout=timeout)
+        else:
+            solution = solve(cubestring, max_depth=24, timeout=timeout)
         elapsed = time.time() - start
         
         if solution.startswith("Error"):
@@ -120,8 +126,19 @@ def test_scramble(name: str, scramble: str, timeout: float = 120.0) -> dict:
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Test du solveur Kociemba")
+    parser.add_argument("--fast", action="store_true", 
+                        help="Mode rapide: première solution trouvée (non-optimale)")
+    parser.add_argument("--optimal", action="store_true", 
+                        help="Mode optimal: solution la plus courte (défaut)")
+    args = parser.parse_args()
+    
+    use_fast = args.fast and not args.optimal
+    mode_str = "FAST (première solution)" if use_fast else "OPTIMAL (solution la plus courte)"
+    
     print("\n" + "=" * 70)
     print("       TESTS COMPLETS DU SOLVEUR KOCIEMBA AUTONOME")
+    print(f"                    Mode: {mode_str}")
     print("=" * 70)
     
     results = []
@@ -141,7 +158,7 @@ def main():
     ]
     
     for name, scramble in short_scrambles:
-        results.append((name, test_scramble(name, scramble)))
+        results.append((name, test_scramble(name, scramble, use_fast=use_fast)))
     
     # ========================================
     # NIVEAU 2: 5-20 mouvements (moyen)
@@ -158,7 +175,7 @@ def main():
     ]
     
     for name, scramble in medium_scrambles:
-        results.append((name, test_scramble(name, scramble)))
+        results.append((name, test_scramble(name, scramble, use_fast=use_fast)))
     
     # ========================================
     # NIVEAU 3: Plus de 20 mouvements (difficile)
@@ -174,7 +191,7 @@ def main():
     ]
     
     for name, scramble in hard_scrambles:
-        results.append((name, test_scramble(name, scramble)))
+        results.append((name, test_scramble(name, scramble, use_fast=use_fast)))
     
     # ========================================
     # NIVEAU 4: Plus de 30 mouvements (très difficile)
@@ -190,7 +207,7 @@ def main():
     ]
     
     for name, scramble in very_hard_scrambles:
-        results.append((name, test_scramble(name, scramble)))
+        results.append((name, test_scramble(name, scramble, use_fast=use_fast)))
     
     # ========================================
     # TEST SPÉCIAL: Superflip
@@ -200,7 +217,7 @@ def main():
     print("⭐ " * 20)
     
     superflip = "U R2 F B R B2 R U2 L B2 R U' D' R2 F R' L B2 U2 F2"
-    results.append(("Superflip (20 HTM)", test_scramble("Superflip", superflip, timeout=180.0)))
+    results.append(("Superflip (20 HTM)", test_scramble("Superflip", superflip, timeout=180.0, use_fast=use_fast)))
     
     # ========================================
     # RÉSUMÉ
