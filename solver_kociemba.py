@@ -1214,7 +1214,7 @@ class Search:
     
     def _phase2(self, depth_phase1, max_depth, t_start, timeout):
         """Phase 2: résolution finale dans G1"""
-        max_depth_phase2 = min(10, max_depth - depth_phase1)
+        max_depth_phase2 = min(18, max_depth - depth_phase1)
         
         # Calculer coordonnées à la fin de phase 1
         for i in range(depth_phase1):
