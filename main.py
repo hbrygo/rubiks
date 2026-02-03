@@ -36,7 +36,7 @@ def main():
     start = time.time()
     try:
         if use_fast:
-            solution = solve_fast(cubestring, max_depth=50, timeout=3)
+            solution = solve_fast(cubestring, max_depth=50, timeout=3, timeout_per_depth=0.0000001)
         else:
             solution = solve(cubestring, max_depth=30, timeout=15)
         elapsed = time.time() - start

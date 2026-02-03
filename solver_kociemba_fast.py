@@ -613,14 +613,15 @@ class SearchFast:
             parts.append(self.AXIS_NAMES[self.ax[i]] + self.POWER_NAMES[self.po[i]])
         return ''.join(parts).strip()
     
-    def solve(self, cube_string, max_depth=50, timeout=10.0):
+    def solve(self, cube_string, max_depth=50, timeout=10.0, timeout_per_depth=0.3):
         """
         Résout le cube en mode FAST (première solution trouvée).
         
         Args:
             cube_string: String 54 caractères (URFDLB)
             max_depth: Profondeur maximale (défaut: 50)
-            timeout: Temps limite en secondes
+            timeout: Temps limite global en secondes
+            timeout_per_depth: Temps limite par profondeur en secondes (défaut: 0.3s)
         
         Returns:
             String de la solution ou message d'erreur
@@ -676,6 +677,7 @@ class SearchFast:
         # MODE FAST: on utilise l'estimation des pruning tables comme
         # profondeur de départ, puis on augmente par grands sauts (pas +1)
         # Dès qu'une solution est trouvée, on retourne immédiatement.
+        # AVEC TIMEOUT PAR PROFONDEUR: limit le temps passé à chaque profondeur
         # =================================================================
         
         # Calculer l'estimation minimale initiale
@@ -693,6 +695,12 @@ class SearchFast:
         t_start = time.time()
         
         while True:
+            # ========================================================
+            # NOUVEAU: Timeout par profondeur - commence à chaque nouvelle profondeur
+            # ========================================================
+            t_depth_start = time.time()
+            depth_timeout_reached = False
+            
             while True:
                 if depth_phase1 - n > self.minDistPhase1[n + 1] and not busy:
                     if self.ax[n] in (0, 3):
@@ -708,10 +716,19 @@ class SearchFast:
                         while True:
                             self.ax[n] += 1
                             if self.ax[n] > 5:
+                                # ====================================================
+                                # NOUVEAU: Vérifier si on a dépassé le timeout global
+                                # ====================================================
                                 if time.time() - t_start > timeout:
                                     return "Error: timeout"
                                 
                                 if n == 0:
+                                    # ========================================================
+                                    # NOUVEAU: Vérifier si on a dépassé le timeout par profondeur
+                                    # ========================================================
+                                    if time.time() - t_depth_start > timeout_per_depth:
+                                        depth_timeout_reached = True
+                                    
                                     # Pas de solution à cette profondeur
                                     # MODE FAST: incrément de 2 pour aller plus vite
                                     depth_phase1 += 2
@@ -738,6 +755,12 @@ class SearchFast:
                 if not busy:
                     break
             
+            # ========================================================
+            # NOUVEAU: Si on a atteint le timeout de profondeur, continuer à la prochaine
+            # ========================================================
+            if depth_timeout_reached:
+                continue
+            
             mv = 3 * self.ax[n] + self.po[n] - 1
             self.flip[n + 1] = self.tables.flip_move[self.flip[n]][mv]
             self.twist[n + 1] = self.tables.twist_move[self.twist[n]][mv]
@@ -754,7 +777,7 @@ class SearchFast:
             if self.minDistPhase1[n + 1] == 0:
                 self.minDistPhase1[n + 1] = 10
                 # Lancer phase 2
-                s = self._phase2(n + 1, max_depth, t_start, timeout)
+                s = self._phase2(n + 1, max_depth, t_start, timeout, timeout_per_depth)
                 if s == -2:
                     return "Error: timeout"
                 if s >= 0:
@@ -763,7 +786,7 @@ class SearchFast:
                     # =================================================
                     return self._solution_string(s)
     
-    def _phase2(self, depth_phase1, max_depth, t_start, timeout):
+    def _phase2(self, depth_phase1, max_depth, t_start, timeout, timeout_per_depth):
         """Phase 2: résolution finale dans G1"""
         # MODE FAST: permettre des phases 2 plus longues (12 au lieu de 10)
         max_depth_phase2 = min(12, max_depth - depth_phase1)
@@ -811,6 +834,12 @@ class SearchFast:
         self.ax[depth_phase1] = 0
         self.minDistPhase2[n + 1] = 1
         
+        # ========================================================
+        # NOUVEAU: Timeout par profondeur en phase 2
+        # ========================================================
+        t_depth_start = time.time()
+        depth_timeout_reached = False
+        
         while True:
             while True:
                 if depth_phase1 + depth_phase2 - n > self.minDistPhase2[n + 1] and not busy:
@@ -836,6 +865,12 @@ class SearchFast:
                                     return -2
                                 
                                 if n == depth_phase1:
+                                    # ====================================================
+                                    # NOUVEAU: Vérifier si on a dépassé le timeout par profondeur
+                                    # ====================================================
+                                    if time.time() - t_depth_start > timeout_per_depth:
+                                        depth_timeout_reached = True
+                                    
                                     if depth_phase2 >= max_depth_phase2:
                                         return -1
                                     depth_phase2 += 1
@@ -862,6 +897,14 @@ class SearchFast:
                 
                 if not busy:
                     break
+            
+            # ========================================================
+            # NOUVEAU: Si on a atteint le timeout de profondeur, continuer à la prochaine
+            # ========================================================
+            if depth_timeout_reached:
+                t_depth_start = time.time()
+                depth_timeout_reached = False
+                continue
             
             mv = 3 * self.ax[n] + self.po[n] - 1
             self.URFtoDLF[n + 1] = self.tables.URFtoDLF_move[self.URFtoDLF[n]][mv]
@@ -893,14 +936,15 @@ def _get_tables():
         _tables = Tables()
     return _tables
 
-def solve_fast(cube_string, max_depth=50, timeout=10.0):
+def solve_fast(cube_string, max_depth=50, timeout=10.0, timeout_per_depth=0.3):
     """
     Résout un Rubik's Cube en mode FAST (première solution trouvée).
     
     Args:
         cube_string: String de 54 caractères (URFDLB)
         max_depth: Profondeur maximale (défaut: 50)
-        timeout: Temps limite en secondes (défaut: 10.0)
+        timeout: Temps limite global en secondes (défaut: 10.0)
+        timeout_per_depth: Temps limite par profondeur en secondes (défaut: 0.3s)
     
     Returns:
         str: La solution (potentiellement non-optimale)
@@ -908,7 +952,7 @@ def solve_fast(cube_string, max_depth=50, timeout=10.0):
     """
     tables = _get_tables()
     search = SearchFast(tables)
-    return search.solve(cube_string, max_depth, timeout)
+    return search.solve(cube_string, max_depth, timeout, timeout_per_depth)
 
 
 if __name__ == "__main__":
