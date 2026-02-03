@@ -1057,7 +1057,10 @@ class Search:
         """Convertit la solution en notation standard"""
         parts = []
         for i in range(length):
-            parts.append(self.AXIS_NAMES[self.ax[i]] + self.POWER_NAMES[self.po[i]])
+            if self.POWER_NAMES[self.po[i]] is not None:
+                parts.append(self.AXIS_NAMES[self.ax[i]] + self.POWER_NAMES[self.po[i]])
+            else:
+                parts.append(self.AXIS_NAMES[self.ax[i]])
             if i == sep_pos - 1:
                 parts.append('. ')
         return ''.join(parts).strip()
