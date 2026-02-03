@@ -6,6 +6,10 @@ Version rapide du solver Kociemba qui retourne la PREMIÈRE solution trouvée,
 sans garantie d'optimalité. Utile quand la vitesse est plus importante
 que la longueur minimale de la solution.
 
+Différence avec solver_kociemba.py:
+- IDA* (optimal): profondeur 1 → 2 → 3... première solution = optimale
+- DFS (fast): profondeur max directe, première solution trouvée retournée
+
 UTILISATION:
     from solver_kociemba_fast import solve_fast
     
@@ -691,9 +695,8 @@ class SearchFast:
                        N_SLICE1 * self.twist[0] + self.slice_[0])
         )
         
-        # MODE FAST: commencer à profondeur 7 minimum (la plupart des
-        # scrambles ont une phase 1 de 7-12 coups) et augmenter par +2
-        depth_phase1 = max(init_estimate, 7)
+        # Commencer un peu au-dessus de l'estimation (pour avoir une marge)
+        depth_phase1 = max(init_estimate, 1)
         
         t_start = time.time()
         
@@ -733,8 +736,8 @@ class SearchFast:
                                         depth_timeout_reached = True
                                     
                                     # Pas de solution à cette profondeur
-                                    # MODE FAST: incrément de 2 pour aller plus vite
-                                    depth_phase1 += 2
+                                    # Mode FAST: augmenter par sauts de 3
+                                    depth_phase1 += 15
                                     if depth_phase1 > max_depth:
                                         return "Error: pas de solution dans la limite"
                                     self.ax[n] = 0
@@ -791,8 +794,7 @@ class SearchFast:
     
     def _phase2(self, depth_phase1, max_depth, t_start, timeout, timeout_per_depth):
         """Phase 2: résolution finale dans G1"""
-        # MODE FAST: permettre des phases 2 plus longues (12 au lieu de 10)
-        max_depth_phase2 = min(12, max_depth - depth_phase1)
+        max_depth_phase2 = min(10, max_depth - depth_phase1)
         
         for i in range(depth_phase1):
             mv = 3 * self.ax[i] + self.po[i] - 1
