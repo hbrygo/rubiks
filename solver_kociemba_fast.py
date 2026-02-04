@@ -695,8 +695,9 @@ class SearchFast:
                        N_SLICE1 * self.twist[0] + self.slice_[0])
         )
         
-        # Commencer un peu au-dessus de l'estimation (pour avoir une marge)
-        depth_phase1 = max(init_estimate, 1)
+        # MODE FAST: commencer à l'estimation minimale (IDA* style)
+        # puis incrémenter de +1 avec timeout court par profondeur
+        depth_phase1 = init_estimate
         
         t_start = time.time()
         
@@ -736,8 +737,8 @@ class SearchFast:
                                         depth_timeout_reached = True
                                     
                                     # Pas de solution à cette profondeur
-                                    # Mode FAST: augmenter par sauts de 3
-                                    depth_phase1 += 15
+                                    # Mode FAST: +1 comme IDA* classique
+                                    depth_phase1 += 7
                                     if depth_phase1 > max_depth:
                                         return "Error: pas de solution dans la limite"
                                     self.ax[n] = 0
@@ -794,7 +795,7 @@ class SearchFast:
     
     def _phase2(self, depth_phase1, max_depth, t_start, timeout, timeout_per_depth):
         """Phase 2: résolution finale dans G1"""
-        max_depth_phase2 = min(10, max_depth - depth_phase1)
+        max_depth_phase2 = min(25, max_depth - depth_phase1)
         
         for i in range(depth_phase1):
             mv = 3 * self.ax[i] + self.po[i] - 1
