@@ -204,7 +204,7 @@ def get_move_axis_layer_direction(mv):
     elif mv == "B'":
         return 'z', -1, -1
     else:
-        return None, None, None, None
+        return None, None, None
 
 def main(shuffle, solution):
     pygame.init()
