@@ -178,6 +178,34 @@ class SolutionPlayer:
     def finished(self):
         return self.index >= len(self.tab) and not self.has_pending()
 
+def get_move_axis_layer_direction(mv):
+    if mv == "R":
+        return 'x', 1, -1
+    elif mv == "R'":
+        return 'x', 1, 1
+    elif mv == "L":
+        return 'x', -1, 1
+    elif mv == "L'":
+        return 'x', -1, -1
+    elif mv == "U":
+        return 'y', 1, -1
+    elif mv == "U'":
+        return 'y', 1, 1
+    elif mv == "D":
+        return 'y', -1, 1
+    elif mv == "D'":
+        return 'y', -1, -1
+    elif mv == "F":
+        return 'z', 1, -1
+    elif mv == "F'":
+        return 'z', 1, 1
+    elif mv == "B":
+        return 'z', -1, 1
+    elif mv == "B'":
+        return 'z', -1, -1
+    else:
+        return None, None, None, None
+
 def main(shuffle, solution):
     pygame.init()
     pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), DOUBLEBUF | OPENGL)
@@ -218,30 +246,7 @@ def main(shuffle, solution):
                 base_move = base_move[:-1]
                 shuffle = base_move + " " + shuffle
 
-            if base_move == "R":
-                axis, layer, direction = 'x', 1, -1
-            elif base_move == "R'":
-                axis, layer, direction = 'x', 1, 1
-            elif base_move == "L":
-                axis, layer, direction = 'x', -1, 1
-            elif base_move == "L'":
-                axis, layer, direction = 'x', -1, -1
-            elif base_move == "U":
-                axis, layer, direction = 'y', 1, -1
-            elif base_move == "U'":
-                axis, layer, direction = 'y', 1, 1
-            elif base_move == "D":
-                axis, layer, direction = 'y', -1, 1
-            elif base_move == "D'":
-                axis, layer, direction = 'y', -1, -1
-            elif base_move == "F":
-                axis, layer, direction = 'z', 1, -1
-            elif base_move == "F'":
-                axis, layer, direction = 'z', 1, 1
-            elif base_move == "B":
-                axis, layer, direction = 'z', -1, 1
-            elif base_move == "B'":
-                axis, layer, direction = 'z', -1, -1
+            axis, layer, direction = get_move_axis_layer_direction(base_move)
 
             rotating = True
             angle = 0
@@ -259,38 +264,14 @@ def main(shuffle, solution):
                 times = 2
                 mv = mv[:-1]
 
-            if mv == "R":
-                axis, layer, direction = 'x', 1, -1
-            elif mv == "R'":
-                axis, layer, direction = 'x', 1, 1
-            elif mv == "L":
-                axis, layer, direction = 'x', -1, 1
-            elif mv == "L'":
-                axis, layer, direction = 'x', -1, -1
-            elif mv == "U":
-                axis, layer, direction = 'y', 1, -1
-            elif mv == "U'":
-                axis, layer, direction = 'y', 1, 1
-            elif mv == "D":
-                axis, layer, direction = 'y', -1, 1
-            elif mv == "D'":
-                axis, layer, direction = 'y', -1, -1
-            elif mv == "F":
-                axis, layer, direction = 'z', 1, -1
-            elif mv == "F'":
-                axis, layer, direction = 'z', 1, 1
-            elif mv == "B":
-                axis, layer, direction = 'z', -1, 1
-            elif mv == "B'":
-                axis, layer, direction = 'z', -1, -1
-            else:
-                axis = layer = direction = None
+            axis, layer, direction = get_move_axis_layer_direction(mv)
 
             if times == 2:
                 solution_player.pending_move = mv
 
-            rotating = True
-            angle = 0
+            if axis is not None:
+                rotating = True
+                angle = 0
 
         # key press + free play if no solution
         for e in pygame.event.get():
@@ -345,6 +326,8 @@ def main(shuffle, solution):
 if __name__ == "__main__":
     if len(sys.argv) > 3:
         print("Error: Too many arguments.")
+        print("Usage: python3 bonus_3D.py \"R F B2 F'\" \"R F B2 F'\"")
+        print("Or")
         print("Usage: python3 bonus_3D.py \"R F B2 F'\"")
         print("Or")
         print("Usage: python3 bonus_3D.py")
