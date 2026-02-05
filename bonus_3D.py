@@ -300,10 +300,10 @@ def main(shuffle, solution):
 
             if e.type == KEYDOWN and solution_player is not None and not rotating:
                 if e.key == K_LEFT:
-                    m = solution_player.prev()
+                    solution_player.prev()
                 elif e.key == K_RIGHT:
-                    m = solution_player.next()
-                if e.key == K_q or e.key == K_ESCAPE:
+                    solution_player.next()
+                elif e.key == K_q or e.key == K_ESCAPE:
                     pygame.quit()
                     return
                 continue
