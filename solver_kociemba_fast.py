@@ -614,7 +614,10 @@ class SearchFast:
     def _solution_string(self, length):
         parts = []
         for i in range(length):
-            parts.append(self.AXIS_NAMES[self.ax[i]] + self.POWER_NAMES[self.po[i]])
+            if self.POWER_NAMES[self.po[i]] is not None:
+                parts.append(self.AXIS_NAMES[self.ax[i]] + self.POWER_NAMES[self.po[i]])
+            else:
+                parts.append(self.AXIS_NAMES[self.ax[i]])
         return ''.join(parts).strip()
     
     def solve(self, cube_string, max_depth=50, timeout=10.0, timeout_per_depth=0.3):
