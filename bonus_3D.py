@@ -136,7 +136,77 @@ def rotate_face(cubies, axis, layer, step, direction=1):
                 c.pos[1] = x * math.sin(rad) + y * math.cos(rad)
                 c.rot[2] += step * direction
 
-def main(shuffle):
+def invert_move(move: str) -> str:
+    if move.endswith("'"):
+        return move[:-1]
+    if move.endswith("2"):
+        return move
+    return move + "'"
+
+class SolutionPlayer:
+    """Non-blocking controller for solution sequence with prev/next navigation."""
+    def __init__(self, solution: str):
+        self.tab = solution.split()
+        self.index = 0
+        self.pending_move = None
+
+    def next(self):
+        if self.index >= len(self.tab):
+            return None
+        m = self.tab[self.index]
+        self.index += 1
+        self.pending_move = m
+        return m
+
+    def prev(self):
+        if self.index == 0:
+            return None
+        self.index -= 1
+        m = self.tab[self.index]
+        inv = invert_move(m)
+        self.pending_move = inv
+        return inv
+
+    def has_pending(self):
+        return self.pending_move is not None
+
+    def pop_pending(self):
+        m = self.pending_move
+        self.pending_move = None
+        return m
+
+    def finished(self):
+        return self.index >= len(self.tab) and not self.has_pending()
+
+def get_move_axis_layer_direction(mv):
+    if mv == "R":
+        return 'x', 1, -1
+    elif mv == "R'":
+        return 'x', 1, 1
+    elif mv == "L":
+        return 'x', -1, 1
+    elif mv == "L'":
+        return 'x', -1, -1
+    elif mv == "U":
+        return 'y', 1, -1
+    elif mv == "U'":
+        return 'y', 1, 1
+    elif mv == "D":
+        return 'y', -1, 1
+    elif mv == "D'":
+        return 'y', -1, -1
+    elif mv == "F":
+        return 'z', 1, -1
+    elif mv == "F'":
+        return 'z', 1, 1
+    elif mv == "B":
+        return 'z', -1, 1
+    elif mv == "B'":
+        return 'z', -1, -1
+    else:
+        return None, None, None
+
+def main(shuffle, solution):
     pygame.init()
     pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), DOUBLEBUF | OPENGL)
     gluPerspective(45, WINDOW_WIDTH/WINDOW_HEIGHT, 0.1, 50)
@@ -160,54 +230,67 @@ def main(shuffle):
     angle = 0
     direction = 1
 
+    initial_solution = solution.strip()
+    solution = ""
+    solution_player = None
+
     while True:
         clock.tick(60)
 
+        # shuffle
         if shuffle.strip() and not rotating:
             moves = shuffle.split()
-            
             base_move = moves.pop(0)
             shuffle = " ".join(moves)
             if base_move.endswith("2"):
                 base_move = base_move[:-1]
                 shuffle = base_move + " " + shuffle
 
-            if base_move == "R":
-                axis, layer, direction = 'x', 1, -1
-            elif base_move == "R'":
-                axis, layer, direction = 'x', 1, 1
-            elif base_move == "L":
-                axis, layer, direction = 'x', -1, 1
-            elif base_move == "L'":
-                axis, layer, direction = 'x', -1, -1
-            elif base_move == "U":
-                axis, layer, direction = 'y', 1, -1
-            elif base_move == "U'":
-                axis, layer, direction = 'y', 1, 1
-            elif base_move == "D":
-                axis, layer, direction = 'y', -1, 1
-            elif base_move == "D'":
-                axis, layer, direction = 'y', -1, -1
-            elif base_move == "F":
-                axis, layer, direction = 'z', 1, -1
-            elif base_move == "F'":
-                axis, layer, direction = 'z', 1, 1
-            elif base_move == "B":
-                axis, layer, direction = 'z', -1, 1
-            elif base_move == "B'":
-                axis, layer, direction = 'z', -1, -1
+            axis, layer, direction = get_move_axis_layer_direction(base_move)
 
             rotating = True
             angle = 0
-    
+            if not shuffle:
+                print("Shuffle finished")
+
+        # solution
+        if not shuffle.strip() and initial_solution and solution_player is None and not rotating:
+            solution_player = SolutionPlayer(initial_solution)
+
+        if solution_player and solution_player.has_pending() and not rotating:
+            mv = solution_player.pop_pending()
+            times = 1
+            if mv.endswith("2"):
+                times = 2
+                mv = mv[:-1]
+
+            axis, layer, direction = get_move_axis_layer_direction(mv)
+
+            if times == 2:
+                solution_player.pending_move = mv
+
+            if axis is not None:
+                rotating = True
+                angle = 0
+
+        # key press + free play if no solution
         for e in pygame.event.get():
             if e.type == QUIT:
                 pygame.quit()
                 return
-            if e.type == KEYDOWN and not rotating and not shuffle:
-                # avoid reusing a stale `axis` when only Shift is pressed
+
+            if e.type == KEYDOWN and solution_player is not None and not rotating:
+                if e.key == K_LEFT:
+                    solution_player.prev()
+                elif e.key == K_RIGHT:
+                    solution_player.next()
+                elif e.key == K_q or e.key == K_ESCAPE:
+                    pygame.quit()
+                    return
+                continue
+
+            if e.type == KEYDOWN and not rotating and not shuffle.strip() and solution_player is None:
                 axis = layer = None
-                # détecter shift pour la version prime (inverse)
                 dir_key = -1 if pygame.key.get_mods() & KMOD_SHIFT else 1
                 if e.key == K_r: axis, layer, direction = 'x', 1, -dir_key
                 if e.key == K_l: axis, layer, direction = 'x', -1, dir_key
@@ -222,6 +305,7 @@ def main(shuffle):
                     pygame.quit()
                     return
 
+        # apply rotation
         if rotating:
             rotate_face(cubies, axis, layer, ROT_STEP, direction)
             angle += ROT_STEP
@@ -232,7 +316,6 @@ def main(shuffle):
                     c.rot = [0, 0, 0]
                     if round(c.pos['xyz'.index(axis)] / CUBE_GAP) == layer:
                         c.rotate_faces(axis, direction)
-                # clear pending axis/layer so subsequent modifier presses don't restart the last move
                 axis = layer = None
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -241,15 +324,22 @@ def main(shuffle):
         pygame.display.flip()
 
 if __name__ == "__main__":
-    if len(sys.argv) > 2:
+    if len(sys.argv) > 3:
         print("Error: Too many arguments.")
+        print("Usage: python3 bonus_3D.py \"R F B2 F'\" \"R F B2 F'\"")
+        print("Or")
         print("Usage: python3 bonus_3D.py \"R F B2 F'\"")
         print("Or")
         print("Usage: python3 bonus_3D.py")
         sys.exit(1)
-    shuffle = sys.argv[1] if len(sys.argv) == 2 else ""
+    shuffle = sys.argv[1] if len(sys.argv) >= 2 else ""
+    solution = sys.argv[2] if len(sys.argv) >= 3 else ""
     invalid_moves = [move for move in shuffle.split() if move not in allowed_moves]
     if invalid_moves:
         print(f"Invalid moves found: {', '.join(invalid_moves)}")
         sys.exit(1)
-    main(shuffle)
+    invalid_moves = [move for move in solution.split() if move not in allowed_moves]
+    if invalid_moves:
+        print(f"Invalid moves found: {', '.join(invalid_moves)}")
+        sys.exit(1)
+    main(shuffle, solution)
