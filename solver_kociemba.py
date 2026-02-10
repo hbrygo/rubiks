@@ -25,8 +25,8 @@ Basé sur les travaux de Herbert Kociemba.
 """
 
 import time
-import pickle
-import os
+
+from kociemba_tables import Tables, KociembaTablesConfig, get_pruning, set_pruning
 
 # =============================================================================
 # CONSTANTES
@@ -93,6 +93,21 @@ N_MOVE = 18         # 18 mouvements possibles
 PARITY_MOVE = (
     (1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1),
     (0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0),
+)
+
+KOCIEMBA_TABLES_CONFIG = KociembaTablesConfig(
+    N_MOVE=N_MOVE,
+    N_TWIST=N_TWIST,
+    N_FLIP=N_FLIP,
+    N_FRtoBR=N_FRtoBR,
+    N_URFtoDLF=N_URFtoDLF,
+    N_URtoUL=N_URtoUL,
+    N_UBtoDF=N_UBtoDF,
+    N_URtoDF=N_URtoDF,
+    N_SLICE1=N_SLICE1,
+    N_SLICE2=N_SLICE2,
+    N_PARITY=N_PARITY,
+    BR=BR,
 )
 
 # =============================================================================
@@ -610,422 +625,6 @@ class FaceCube:
         
         return cc
 
-
-# =============================================================================
-# TABLES DE PRUNING - Stockage optimisé
-# =============================================================================
-
-def get_pruning(table, index):
-    """Extrait une valeur de pruning (2 valeurs par octet)"""
-    if (index & 1) == 0:
-        return table[index >> 1] & 0x0f
-    else:
-        return (table[index >> 1] >> 4) & 0x0f
-
-
-def set_pruning(table, index, value):
-    """Définit une valeur de pruning"""
-    idx = index >> 1
-    if (index & 1) == 0:
-        table[idx] = (table[idx] & 0xf0) | (value & 0x0f)
-    else:
-        table[idx] = (table[idx] & 0x0f) | ((value & 0x0f) << 4)
-
-
-# =============================================================================
-# GÉNÉRATEUR DE TABLES
-# =============================================================================
-
-class Tables:
-    """Toutes les tables nécessaires à l'algorithme"""
-    
-    _instance = None
-    
-    # Chemin du fichier cache (dans le même répertoire que ce script)
-    CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "kociemba_tables.pkl")
-    CACHE_VERSION = "1.0"  # Incrémenter si le format des tables change
-    
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
-    
-    def __init__(self):
-        if self._initialized:
-            return
-        self._initialized = True
-        
-        # Tables de mouvement (listes de listes pour accès rapide)
-        self.twist_move = None
-        self.flip_move = None
-        self.FRtoBR_move = None
-        self.URFtoDLF_move = None
-        self.URtoUL_move = None
-        self.UBtoDF_move = None
-        self.URtoDF_move = None
-        self.merge_URtoUL_UBtoDF = None
-        
-        # Tables de pruning (bytearrays)
-        self.slice_flip_prun = None
-        self.slice_twist_prun = None
-        self.slice_URFtoDLF_parity_prun = None
-        self.slice_URtoDF_parity_prun = None
-        
-        # Essayer de charger depuis le cache, sinon générer
-        if not self._load_from_cache():
-            self._generate_all()
-            self._save_to_cache()
-    
-    def _load_from_cache(self) -> bool:
-        """Charge les tables depuis le fichier cache si disponible"""
-        if not os.path.exists(self.CACHE_FILE):
-            return False
-        
-        try:
-            print(f"Chargement des tables depuis {os.path.basename(self.CACHE_FILE)}...")
-            t_start = time.time()
-            
-            with open(self.CACHE_FILE, 'rb') as f:
-                data = pickle.load(f)
-            
-            # Vérifier la version
-            if data.get('version') != self.CACHE_VERSION:
-                print("  Version du cache obsolète, régénération nécessaire...")
-                return False
-            
-            # Charger les tables
-            self.twist_move = data['twist_move']
-            self.flip_move = data['flip_move']
-            self.FRtoBR_move = data['FRtoBR_move']
-            self.URFtoDLF_move = data['URFtoDLF_move']
-            self.URtoUL_move = data['URtoUL_move']
-            self.UBtoDF_move = data['UBtoDF_move']
-            self.URtoDF_move = data['URtoDF_move']
-            self.merge_URtoUL_UBtoDF = data['merge_URtoUL_UBtoDF']
-            self.slice_flip_prun = data['slice_flip_prun']
-            self.slice_twist_prun = data['slice_twist_prun']
-            self.slice_URFtoDLF_parity_prun = data['slice_URFtoDLF_parity_prun']
-            self.slice_URtoDF_parity_prun = data['slice_URtoDF_parity_prun']
-            
-            elapsed = time.time() - t_start
-            print(f"Tables chargées en {elapsed:.2f} secondes")
-            return True
-            
-        except Exception as e:
-            print(f"  Erreur lors du chargement du cache: {e}")
-            print("  Régénération des tables...")
-            return False
-    
-    def _save_to_cache(self):
-        """Sauvegarde les tables dans le fichier cache"""
-        try:
-            print(f"Sauvegarde des tables dans {os.path.basename(self.CACHE_FILE)}...")
-            
-            data = {
-                'version': self.CACHE_VERSION,
-                'twist_move': self.twist_move,
-                'flip_move': self.flip_move,
-                'FRtoBR_move': self.FRtoBR_move,
-                'URFtoDLF_move': self.URFtoDLF_move,
-                'URtoUL_move': self.URtoUL_move,
-                'UBtoDF_move': self.UBtoDF_move,
-                'URtoDF_move': self.URtoDF_move,
-                'merge_URtoUL_UBtoDF': self.merge_URtoUL_UBtoDF,
-                'slice_flip_prun': self.slice_flip_prun,
-                'slice_twist_prun': self.slice_twist_prun,
-                'slice_URFtoDLF_parity_prun': self.slice_URFtoDLF_parity_prun,
-                'slice_URtoDF_parity_prun': self.slice_URtoDF_parity_prun,
-            }
-            
-            with open(self.CACHE_FILE, 'wb') as f:
-                pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
-            
-            # Afficher la taille du fichier
-            size_mb = os.path.getsize(self.CACHE_FILE) / (1024 * 1024)
-            print(f"Tables sauvegardées ({size_mb:.1f} MB)")
-            
-        except Exception as e:
-            print(f"  Avertissement: impossible de sauvegarder le cache: {e}")
-    
-    def _generate_all(self):
-        """Génère toutes les tables"""
-        print("Génération des tables de mouvement et pruning...")
-        print("(Première exécution uniquement, ~2-5 minutes)")
-        t_start = time.time()
-        
-        # Tables de mouvement
-        print("  [1/12] twist_move...")
-        self.twist_move = self._gen_twist_move()
-        
-        print("  [2/12] flip_move...")
-        self.flip_move = self._gen_flip_move()
-        
-        print("  [3/12] FRtoBR_move...")
-        self.FRtoBR_move = self._gen_FRtoBR_move()
-        
-        print("  [4/12] URFtoDLF_move...")
-        self.URFtoDLF_move = self._gen_URFtoDLF_move()
-        
-        print("  [5/12] URtoUL_move...")
-        self.URtoUL_move = self._gen_URtoUL_move()
-        
-        print("  [6/12] UBtoDF_move...")
-        self.UBtoDF_move = self._gen_UBtoDF_move()
-        
-        print("  [7/12] URtoDF_move...")
-        self.URtoDF_move = self._gen_URtoDF_move()
-        
-        print("  [8/12] merge_URtoUL_UBtoDF...")
-        self.merge_URtoUL_UBtoDF = self._gen_merge_table()
-        
-        # Tables de pruning
-        print("  [9/12] slice_flip_prun...")
-        self.slice_flip_prun = self._gen_slice_flip_prun()
-        
-        print("  [10/12] slice_twist_prun...")
-        self.slice_twist_prun = self._gen_slice_twist_prun()
-        
-        print("  [11/12] slice_URFtoDLF_parity_prun...")
-        self.slice_URFtoDLF_parity_prun = self._gen_slice_URFtoDLF_parity_prun()
-        
-        print("  [12/12] slice_URtoDF_parity_prun...")
-        self.slice_URtoDF_parity_prun = self._gen_slice_URtoDF_parity_prun()
-        
-        elapsed = time.time() - t_start
-        print(f"Tables générées en {elapsed:.1f} secondes")
-    
-    def _gen_twist_move(self):
-        """Table de mouvement pour twist (orientation des coins)"""
-        table = [[0] * N_MOVE for _ in range(N_TWIST)]
-        a = CubieCube()
-        for i in range(N_TWIST):
-            a.set_twist(i)
-            for j in range(6):
-                for k in range(3):
-                    a.corner_multiply(MOVE_CUBE[j])
-                    table[i][3 * j + k] = a.get_twist()
-                a.corner_multiply(MOVE_CUBE[j])
-        return table
-    
-    def _gen_flip_move(self):
-        """Table de mouvement pour flip (orientation des arêtes)"""
-        table = [[0] * N_MOVE for _ in range(N_FLIP)]
-        a = CubieCube()
-        for i in range(N_FLIP):
-            a.set_flip(i)
-            for j in range(6):
-                for k in range(3):
-                    a.edge_multiply(MOVE_CUBE[j])
-                    table[i][3 * j + k] = a.get_flip()
-                a.edge_multiply(MOVE_CUBE[j])
-        return table
-    
-    def _gen_FRtoBR_move(self):
-        """Table de mouvement pour FRtoBR (arêtes du slice)"""
-        table = [[0] * N_MOVE for _ in range(N_FRtoBR)]
-        a = CubieCube()
-        for i in range(N_FRtoBR):
-            a.set_FRtoBR(i)
-            for j in range(6):
-                for k in range(3):
-                    a.edge_multiply(MOVE_CUBE[j])
-                    table[i][3 * j + k] = a.get_FRtoBR()
-                a.edge_multiply(MOVE_CUBE[j])
-        return table
-    
-    def _gen_URFtoDLF_move(self):
-        """Table de mouvement pour URFtoDLF (6 premiers coins)"""
-        table = [[0] * N_MOVE for _ in range(N_URFtoDLF)]
-        a = CubieCube()
-        for i in range(N_URFtoDLF):
-            a.set_URFtoDLF(i)
-            for j in range(6):
-                for k in range(3):
-                    a.corner_multiply(MOVE_CUBE[j])
-                    table[i][3 * j + k] = a.get_URFtoDLF()
-                a.corner_multiply(MOVE_CUBE[j])
-        return table
-    
-    def _gen_URtoUL_move(self):
-        """Table de mouvement pour URtoUL"""
-        table = [[0] * N_MOVE for _ in range(N_URtoUL)]
-        a = CubieCube()
-        for i in range(N_URtoUL):
-            a.set_URtoUL(i)
-            for j in range(6):
-                for k in range(3):
-                    a.edge_multiply(MOVE_CUBE[j])
-                    table[i][3 * j + k] = a.get_URtoUL()
-                a.edge_multiply(MOVE_CUBE[j])
-        return table
-    
-    def _gen_UBtoDF_move(self):
-        """Table de mouvement pour UBtoDF"""
-        table = [[0] * N_MOVE for _ in range(N_UBtoDF)]
-        a = CubieCube()
-        for i in range(N_UBtoDF):
-            a.set_UBtoDF(i)
-            for j in range(6):
-                for k in range(3):
-                    a.edge_multiply(MOVE_CUBE[j])
-                    table[i][3 * j + k] = a.get_UBtoDF()
-                a.edge_multiply(MOVE_CUBE[j])
-        return table
-    
-    def _gen_URtoDF_move(self):
-        """Table de mouvement pour URtoDF"""
-        table = [[0] * N_MOVE for _ in range(N_URtoDF)]
-        a = CubieCube()
-        for i in range(N_URtoDF):
-            a.set_URtoDF(i)
-            for j in range(6):
-                for k in range(3):
-                    a.edge_multiply(MOVE_CUBE[j])
-                    table[i][3 * j + k] = a.get_URtoDF()
-                a.edge_multiply(MOVE_CUBE[j])
-        return table
-    
-    def _gen_merge_table(self):
-        """Table de fusion URtoUL + UBtoDF -> URtoDF"""
-        table = [[0] * 336 for _ in range(336)]
-        for uRtoUL in range(336):
-            for uBtoDF in range(336):
-                a = CubieCube()
-                b = CubieCube()
-                a.set_URtoUL(uRtoUL)
-                b.set_UBtoDF(uBtoDF)
-                
-                # Fusionner les arêtes
-                for i in range(8):
-                    if a.ep[i] != BR:
-                        if b.ep[i] != BR:
-                            table[uRtoUL][uBtoDF] = -1
-                            break
-                        b.ep[i] = a.ep[i]
-                else:
-                    table[uRtoUL][uBtoDF] = b.get_URtoDF()
-        return table
-    
-    def _gen_slice_flip_prun(self):
-        """Table de pruning Slice+Flip (Phase 1) - optimisée BFS"""
-        size = N_SLICE1 * N_FLIP
-        table = bytearray([0xff] * ((size >> 1) + 1))
-        set_pruning(table, 0, 0)
-        
-        # BFS
-        current = [0]
-        depth = 0
-        
-        while current:
-            next_level = []
-            for idx in current:
-                flip_idx = idx // N_SLICE1
-                slice_idx = idx % N_SLICE1
-                for mv in range(18):
-                    new_slice = self.FRtoBR_move[slice_idx * 24][mv] // 24
-                    new_flip = self.flip_move[flip_idx][mv]
-                    new_idx = N_SLICE1 * new_flip + new_slice
-                    if get_pruning(table, new_idx) == 0x0f:
-                        set_pruning(table, new_idx, depth + 1)
-                        next_level.append(new_idx)
-            current = next_level
-            depth += 1
-        return table
-    
-    def _gen_slice_twist_prun(self):
-        """Table de pruning Slice+Twist (Phase 1) - optimisée BFS"""
-        size = N_SLICE1 * N_TWIST
-        table = bytearray([0xff] * ((size >> 1) + 1))
-        set_pruning(table, 0, 0)
-        
-        # BFS
-        current = [0]
-        depth = 0
-        
-        while current:
-            next_level = []
-            for idx in current:
-                twist_idx = idx // N_SLICE1
-                slice_idx = idx % N_SLICE1
-                for mv in range(18):
-                    new_slice = self.FRtoBR_move[slice_idx * 24][mv] // 24
-                    new_twist = self.twist_move[twist_idx][mv]
-                    new_idx = N_SLICE1 * new_twist + new_slice
-                    if get_pruning(table, new_idx) == 0x0f:
-                        set_pruning(table, new_idx, depth + 1)
-                        next_level.append(new_idx)
-            current = next_level
-            depth += 1
-        return table
-    
-    def _gen_slice_URFtoDLF_parity_prun(self):
-        """Table de pruning Slice+URFtoDLF+Parity (Phase 2) - optimisée BFS"""
-        size = N_SLICE2 * N_URFtoDLF * N_PARITY
-        table = bytearray([0xff] * ((size >> 1) + 1))
-        set_pruning(table, 0, 0)
-        
-        # Mouvements valides en phase 2: U, U2, U', R2, F2, D, D2, D', L2, B2
-        phase2_moves = (0, 1, 2, 4, 7, 9, 10, 11, 13, 16)
-        
-        # BFS avec file
-        current = [0]
-        depth = 0
-        
-        while current:
-            next_level = []
-            for idx in current:
-                parity = idx % 2
-                URFtoDLF = (idx >> 1) // N_SLICE2
-                slice_idx = (idx >> 1) % N_SLICE2
-                
-                for mv in phase2_moves:
-                    new_slice = self.FRtoBR_move[slice_idx][mv] % 24
-                    new_URFtoDLF = self.URFtoDLF_move[URFtoDLF][mv]
-                    new_parity = PARITY_MOVE[parity][mv]
-                    new_idx = (N_SLICE2 * new_URFtoDLF + new_slice) * 2 + new_parity
-                    if new_idx < size and get_pruning(table, new_idx) == 0x0f:
-                        set_pruning(table, new_idx, depth + 1)
-                        next_level.append(new_idx)
-            
-            current = next_level
-            depth += 1
-        return table
-    
-    def _gen_slice_URtoDF_parity_prun(self):
-        """Table de pruning Slice+URtoDF+Parity (Phase 2) - optimisée BFS"""
-        size = N_SLICE2 * N_URtoDF * N_PARITY
-        table = bytearray([0xff] * ((size >> 1) + 1))
-        set_pruning(table, 0, 0)
-        
-        # Mouvements valides en phase 2
-        phase2_moves = (0, 1, 2, 4, 7, 9, 10, 11, 13, 16)
-        
-        # BFS avec file
-        current = [0]
-        depth = 0
-        
-        while current:
-            next_level = []
-            for idx in current:
-                parity = idx % 2
-                URtoDF = (idx >> 1) // N_SLICE2
-                slice_idx = (idx >> 1) % N_SLICE2
-                
-                for mv in phase2_moves:
-                    new_slice = self.FRtoBR_move[slice_idx][mv] % 24
-                    new_URtoDF = self.URtoDF_move[URtoDF][mv]
-                    new_parity = PARITY_MOVE[parity][mv]
-                    new_idx = (N_SLICE2 * new_URtoDF + new_slice) * 2 + new_parity
-                    if new_idx < size and get_pruning(table, new_idx) == 0x0f:
-                        set_pruning(table, new_idx, depth + 1)
-                        next_level.append(new_idx)
-            
-            current = next_level
-            depth += 1
-        return table
-
-
 # =============================================================================
 # ALGORITHME DE RECHERCHE TWO-PHASE
 # =============================================================================
@@ -1078,7 +677,7 @@ class Search:
         Returns:
             String de la solution ou message d'erreur
         """
-        # Validation de l'entrée
+        
         if len(cube_string) != 54:
             return "Error: cubestring doit faire 54 caractères"
         
@@ -1092,7 +691,6 @@ class Search:
             if count[i] != 9:
                 return f"Error: nombre incorrect de '{COLOR_NAMES[i]}'"
         
-        # Conversion en CubieCube
         fc = FaceCube(cube_string)
         cc = fc.to_cubie_cube()
         
@@ -1188,9 +786,7 @@ class Search:
             mv = 3 * self.ax[n] + self.po[n] - 1
             self.flip[n + 1] = self.tables.flip_move[self.flip[n]][mv]
             self.twist[n + 1] = self.tables.twist_move[self.twist[n]][mv]
-            self.slice_[n + 1] = self.tables.FRtoBR_move[self.slice_[n] * 24][mv] // 24
-            # Note: FRtoBR est mis à jour séparément dans _phase2
-            
+            self.slice_[n + 1] = self.tables.FRtoBR_move[self.slice_[n] * 24][mv] // 24 
             self.minDistPhase1[n + 1] = max(
                 get_pruning(self.tables.slice_flip_prun,
                            N_SLICE1 * self.flip[n + 1] + self.slice_[n + 1]),
@@ -1357,7 +953,12 @@ def _get_tables():
     """Retourne les tables (singleton, lazy loading)"""
     global _tables
     if _tables is None:
-        _tables = Tables()
+        _tables = Tables(
+            CubieCube,
+            MOVE_CUBE,
+            PARITY_MOVE,
+            KOCIEMBA_TABLES_CONFIG,
+        )
     return _tables
 
 
@@ -1394,69 +995,3 @@ def init_tables():
     Utile pour éviter le délai au premier appel de solve().
     """
     _get_tables()
-
-
-# =============================================================================
-# EXEMPLE D'UTILISATION
-# =============================================================================
-
-if __name__ == "__main__":
-    print("=" * 60)
-    print("Solver Kociemba - Two-Phase Algorithm")
-    print("Implémentation Python pure, sans dépendance externe")
-    print("=" * 60)
-    print()
-    
-    # Test 1: Cube résolu
-    print("Test 1: Cube résolu")
-    cube = "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB"
-    result = solve(cube)
-    print(f"  Entrée:   {cube}")
-    print(f"  Solution: '{result}'")
-    print()
-    
-    # Test 2: Après mouvement R
-    print("Test 2: Un seul mouvement (R)")
-    cube = "UUFUUFUUFRRRRRRRRRFFDFFDFFDDDBDDBDDBLLLLLLLLLUBBUBBUBB"
-    t_start = time.time()
-    result = solve(cube)
-    elapsed = time.time() - t_start
-    print(f"  Entrée:   {cube}")
-    print(f"  Solution: {result}")
-    print(f"  Temps:    {elapsed:.3f}s")
-    print()
-    
-    # Test 3: Scramble simple
-    print("Test 3: Scramble R U R' U'")
-    cube = "RURUUFUUFFRRRRRRRRUFFUFFUFFDDDDDDDDDBLLLLLLLLBBBLBBBBB"
-    t_start = time.time()
-    result = solve(cube, timeout=30.0)
-    elapsed = time.time() - t_start
-    move_count = len(result.split()) if result and not result.startswith("Error") else 0
-    print(f"  Solution: {result}")
-    print(f"  Coups:    {move_count}")
-    print(f"  Temps:    {elapsed:.3f}s")
-    print()
-    
-    # Test 4: Scramble aléatoire
-    print("Test 4: Scramble aléatoire complexe")
-    cube = "DRLUUBFBRBLURRLBFFUFRFBDUDDRFDDLLDRLDUBFLUBLRFBBDUULF"
-    t_start = time.time()
-    result = solve(cube, timeout=30.0)
-    elapsed = time.time() - t_start
-    move_count = len(result.split()) if result and not result.startswith("Error") else 0
-    print(f"  Entrée:   {cube}")
-    print(f"  Solution: {result}")
-    print(f"  Coups:    {move_count}")
-    print(f"  Temps:    {elapsed:.3f}s")
-    print()
-    
-    # Test 5: Solution avec séparateur
-    print("Test 5: Même scramble avec séparateur phase1/phase2")
-    result = solve(cube, timeout=30.0, separator=True)
-    print(f"  Solution: {result}")
-    print()
-    
-    print("=" * 60)
-    print("Tests terminés!")
-    print("=" * 60)

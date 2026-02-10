@@ -18,8 +18,8 @@ UTILISATION:
 """
 
 import time
-import pickle
-import os
+
+from kociemba_tables import Tables, KociembaTablesConfig, get_pruning, set_pruning
 
 # =============================================================================
 # CONSTANTES (identiques à solver_kociemba.py)
@@ -74,6 +74,21 @@ N_MOVE = 18
 PARITY_MOVE = (
     (1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1),
     (0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0),
+)
+
+KOCIEMBA_TABLES_CONFIG = KociembaTablesConfig(
+    N_MOVE=N_MOVE,
+    N_TWIST=N_TWIST,
+    N_FLIP=N_FLIP,
+    N_FRtoBR=N_FRtoBR,
+    N_URFtoDLF=N_URFtoDLF,
+    N_URtoUL=N_URtoUL,
+    N_UBtoDF=N_UBtoDF,
+    N_URtoDF=N_URtoDF,
+    N_SLICE1=N_SLICE1,
+    N_SLICE2=N_SLICE2,
+    N_PARITY=N_PARITY,
+    BR=BR,
 )
 
 # =============================================================================
@@ -499,86 +514,6 @@ class FaceCube:
                     break
         return cc
 
-
-# =============================================================================
-# PRUNING TABLES
-# =============================================================================
-
-def get_pruning(table, index):
-    if (index & 1) == 0:
-        return table[index >> 1] & 0x0f
-    else:
-        return (table[index >> 1] >> 4) & 0x0f
-
-def set_pruning(table, index, value):
-    idx = index >> 1
-    if (index & 1) == 0:
-        table[idx] = (table[idx] & 0xf0) | (value & 0x0f)
-    else:
-        table[idx] = (table[idx] & 0x0f) | ((value & 0x0f) << 4)
-
-
-# =============================================================================
-# TABLES (réutilise le cache de solver_kociemba.py)
-# =============================================================================
-
-class Tables:
-    _instance = None
-    CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "kociemba_tables.pkl")
-    CACHE_VERSION = "1.0"
-    
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
-    
-    def __init__(self):
-        if self._initialized:
-            return
-        self._initialized = True
-        
-        self.twist_move = None
-        self.flip_move = None
-        self.FRtoBR_move = None
-        self.URFtoDLF_move = None
-        self.URtoUL_move = None
-        self.UBtoDF_move = None
-        self.URtoDF_move = None
-        self.merge_URtoUL_UBtoDF = None
-        self.slice_flip_prun = None
-        self.slice_twist_prun = None
-        self.slice_URFtoDLF_parity_prun = None
-        self.slice_URtoDF_parity_prun = None
-        
-        if not self._load_from_cache():
-            raise RuntimeError("Tables non trouvées. Lancez d'abord solver_kociemba.py pour générer les tables.")
-    
-    def _load_from_cache(self) -> bool:
-        if not os.path.exists(self.CACHE_FILE):
-            return False
-        try:
-            with open(self.CACHE_FILE, 'rb') as f:
-                data = pickle.load(f)
-            if data.get('version') != self.CACHE_VERSION:
-                return False
-            self.twist_move = data['twist_move']
-            self.flip_move = data['flip_move']
-            self.FRtoBR_move = data['FRtoBR_move']
-            self.URFtoDLF_move = data['URFtoDLF_move']
-            self.URtoUL_move = data['URtoUL_move']
-            self.UBtoDF_move = data['UBtoDF_move']
-            self.URtoDF_move = data['URtoDF_move']
-            self.merge_URtoUL_UBtoDF = data['merge_URtoUL_UBtoDF']
-            self.slice_flip_prun = data['slice_flip_prun']
-            self.slice_twist_prun = data['slice_twist_prun']
-            self.slice_URFtoDLF_parity_prun = data['slice_URFtoDLF_parity_prun']
-            self.slice_URtoDF_parity_prun = data['slice_URtoDF_parity_prun']
-            return True
-        except Exception:
-            return False
-
-
 # =============================================================================
 # ALGORITHME FAST - DFS avec profondeur max directe
 # =============================================================================
@@ -679,14 +614,7 @@ class SearchFast:
         self.minDistPhase1[1] = 1
         n = 0
         busy = False
-        
-        # =================================================================
-        # MODE FAST: on utilise l'estimation des pruning tables comme
-        # profondeur de départ, puis on augmente par grands sauts (pas +1)
-        # Dès qu'une solution est trouvée, on retourne immédiatement.
-        # AVEC TIMEOUT PAR PROFONDEUR: limit le temps passé à chaque profondeur
-        # =================================================================
-        
+                
         # Calculer l'estimation minimale initiale
         init_estimate = max(
             get_pruning(self.tables.slice_flip_prun,
@@ -695,16 +623,11 @@ class SearchFast:
                        N_SLICE1 * self.twist[0] + self.slice_[0])
         )
         
-        # MODE FAST: commencer à l'estimation minimale (IDA* style)
-        # puis incrémenter de +1 avec timeout court par profondeur
         depth_phase1 = init_estimate
         
         t_start = time.time()
         
         while True:
-            # ========================================================
-            # NOUVEAU: Timeout par profondeur - commence à chaque nouvelle profondeur
-            # ========================================================
             t_depth_start = time.time()
             depth_timeout_reached = False
             
@@ -723,21 +646,12 @@ class SearchFast:
                         while True:
                             self.ax[n] += 1
                             if self.ax[n] > 5:
-                                # ====================================================
-                                # NOUVEAU: Vérifier si on a dépassé le timeout global
-                                # ====================================================
                                 if time.time() - t_start > timeout:
                                     return "Error: timeout"
                                 
                                 if n == 0:
-                                    # ========================================================
-                                    # NOUVEAU: Vérifier si on a dépassé le timeout par profondeur
-                                    # ========================================================
                                     if time.time() - t_depth_start > timeout_per_depth:
                                         depth_timeout_reached = True
-                                    
-                                    # Pas de solution à cette profondeur
-                                    # Mode FAST: +1 comme IDA* classique
                                     depth_phase1 += 7
                                     if depth_phase1 > max_depth:
                                         return "Error: pas de solution dans la limite"
@@ -761,10 +675,7 @@ class SearchFast:
                 
                 if not busy:
                     break
-            
-            # ========================================================
-            # NOUVEAU: Si on a atteint le timeout de profondeur, continuer à la prochaine
-            # ========================================================
+
             if depth_timeout_reached:
                 continue
             
@@ -780,7 +691,6 @@ class SearchFast:
                            N_SLICE1 * self.twist[n + 1] + self.slice_[n + 1])
             )
             
-            # Solution phase 1 trouvée?
             if self.minDistPhase1[n + 1] == 0:
                 self.minDistPhase1[n + 1] = 10
                 # Lancer phase 2
@@ -788,9 +698,6 @@ class SearchFast:
                 if s == -2:
                     return "Error: timeout"
                 if s >= 0:
-                    # =================================================
-                    # DIFFÉRENCE CLÉ: retourne IMMÉDIATEMENT
-                    # =================================================
                     return self._solution_string(s)
     
     def _phase2(self, depth_phase1, max_depth, t_start, timeout, timeout_per_depth):
@@ -840,9 +747,8 @@ class SearchFast:
         self.ax[depth_phase1] = 0
         self.minDistPhase2[n + 1] = 1
         
-        # ========================================================
-        # NOUVEAU: Timeout par profondeur en phase 2
-        # ========================================================
+        # Timeout par profondeur en phase 2
+
         t_depth_start = time.time()
         depth_timeout_reached = False
         
@@ -871,9 +777,6 @@ class SearchFast:
                                     return -2
                                 
                                 if n == depth_phase1:
-                                    # ====================================================
-                                    # NOUVEAU: Vérifier si on a dépassé le timeout par profondeur
-                                    # ====================================================
                                     if time.time() - t_depth_start > timeout_per_depth:
                                         depth_timeout_reached = True
                                     
@@ -904,9 +807,6 @@ class SearchFast:
                 if not busy:
                     break
             
-            # ========================================================
-            # NOUVEAU: Si on a atteint le timeout de profondeur, continuer à la prochaine
-            # ========================================================
             if depth_timeout_reached:
                 t_depth_start = time.time()
                 depth_timeout_reached = False
@@ -939,7 +839,12 @@ _tables = None
 def _get_tables():
     global _tables
     if _tables is None:
-        _tables = Tables()
+        _tables = Tables(
+            CubieCube,
+            MOVE_CUBE,
+            PARITY_MOVE,
+            KOCIEMBA_TABLES_CONFIG,
+        )
     return _tables
 
 def solve_fast(cube_string, max_depth=50, timeout=10.0, timeout_per_depth=0.3):
@@ -959,25 +864,3 @@ def solve_fast(cube_string, max_depth=50, timeout=10.0, timeout_per_depth=0.3):
     tables = _get_tables()
     search = SearchFast(tables)
     return search.solve(cube_string, max_depth, timeout, timeout_per_depth)
-
-
-if __name__ == "__main__":
-    print("=" * 60)
-    print("Solver Kociemba FAST - Première solution trouvée")
-    print("=" * 60)
-    print()
-    
-    import time
-    
-    cube = "DRLUUBFBRBLURRLBFFUFRFBDUDDRFDDLLDRLDUBFLUBLRFBBDUULF"
-    print(f"Cube: {cube}")
-    print()
-    
-    t_start = time.time()
-    result = solve_fast(cube, max_depth=50, timeout=30.0)
-    elapsed = time.time() - t_start
-    
-    move_count = len(result.split()) if result and not result.startswith("Error") else 0
-    print(f"Solution FAST: {result}")
-    print(f"Coups: {move_count}")
-    print(f"Temps: {elapsed:.3f}s")
