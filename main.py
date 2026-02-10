@@ -1,23 +1,66 @@
 import sys
 import time
 import random
+import argparse
 from solver_kociemba import CubieCube, MOVE_CUBE, solve
-from test_kociemba import apply_moves, MOVE_NAMES
+from solver_kociemba_fast import solve_fast
 
 allowed_moves = {"R","R'","R2","L","L'","L2","U","U'","U2",
            "D","D'","D2","F","F'","F2","B","B'","B2"}
 
+MOVE_NAMES = ["U", "R", "F", "D", "L", "B"]
+
+def apply_moves(scramble: str) -> CubieCube:
+    """Applique une séquence de mouvements à un cube résolu"""
+    cc = CubieCube()
+    moves = scramble.split()
+    
+    for move in moves:
+        if not move:
+            continue
+        
+        # Parser le mouvement
+        face = move[0]
+        if face not in MOVE_NAMES:
+            print(f"Mouvement inconnu: {move}")
+            continue
+        
+        face_idx = MOVE_NAMES.index(face)
+        
+        # Déterminer le nombre de rotations
+        if len(move) == 1:
+            count = 1  # U = 1 fois
+        elif move[1] == "'":
+            count = 3  # U' = 3 fois (équivalent à -1)
+        elif move[1] == "2":
+            count = 2  # U2 = 2 fois
+        else:
+            count = 1
+        
+        # Appliquer le mouvement
+        for _ in range(count):
+            cc.multiply(MOVE_CUBE[face_idx])
+    
+    return cc
+
 def main():
-    if len(sys.argv) != 2:
-        print("Usage: python3 main.py \"R F B2 F'\"")
-        sys.exit(1)
-    shuffle = sys.argv[1]
+    parser = argparse.ArgumentParser(description="Rubik's Cube Solver")
+    parser.add_argument("shuffle", help="Séquence de mélange (ex: \"R F B2 F'\")")
+    parser.add_argument("--fast", action="store_true", 
+                        help="Mode rapide: première solution trouvée (non-optimale)")
+    parser.add_argument("--optimal", action="store_true", 
+                        help="Mode optimal: solution la plus courte (défaut)")
+    args = parser.parse_args()
+    
+    shuffle = args.shuffle
+    use_fast = args.fast and not args.optimal  # --optimal a priorité
     invalid_moves = [move for move in shuffle.split() if move not in allowed_moves]
     if invalid_moves:
         print(f"Invalid moves found: {', '.join(invalid_moves)}")
         sys.exit(1)
 
     print(f"Shuffle: {shuffle}")
+    print(f"Mode: {'FAST (première solution)' if use_fast else 'OPTIMAL (solution la plus courte)'}")
     cc = apply_moves(shuffle)
     fc = cc.to_facecube()
     cubestring = fc.to_string()
@@ -26,7 +69,10 @@ def main():
     # Résoudre
     start = time.time()
     try:
-        solution = solve(cubestring, max_depth=24, timeout=3)
+        if use_fast:
+            solution = solve_fast(cubestring, max_depth=50, timeout=3, timeout_per_depth=0.1)
+        else:
+            solution = solve(cubestring, max_depth=24, timeout=3)
         elapsed = time.time() - start
         
         if solution.startswith("Error"):
