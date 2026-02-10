@@ -4,10 +4,44 @@ import random
 import argparse
 from solver_kociemba import CubieCube, MOVE_CUBE, solve
 from solver_kociemba_fast import solve_fast
-from test_kociemba import apply_moves, MOVE_NAMES
 
 allowed_moves = {"R","R'","R2","L","L'","L2","U","U'","U2",
            "D","D'","D2","F","F'","F2","B","B'","B2"}
+
+MOVE_NAMES = ["U", "R", "F", "D", "L", "B"]
+
+def apply_moves(scramble: str) -> CubieCube:
+    """Applique une séquence de mouvements à un cube résolu"""
+    cc = CubieCube()
+    moves = scramble.split()
+    
+    for move in moves:
+        if not move:
+            continue
+        
+        # Parser le mouvement
+        face = move[0]
+        if face not in MOVE_NAMES:
+            print(f"Mouvement inconnu: {move}")
+            continue
+        
+        face_idx = MOVE_NAMES.index(face)
+        
+        # Déterminer le nombre de rotations
+        if len(move) == 1:
+            count = 1  # U = 1 fois
+        elif move[1] == "'":
+            count = 3  # U' = 3 fois (équivalent à -1)
+        elif move[1] == "2":
+            count = 2  # U2 = 2 fois
+        else:
+            count = 1
+        
+        # Appliquer le mouvement
+        for _ in range(count):
+            cc.multiply(MOVE_CUBE[face_idx])
+    
+    return cc
 
 def main():
     parser = argparse.ArgumentParser(description="Rubik's Cube Solver")
