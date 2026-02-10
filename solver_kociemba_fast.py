@@ -19,7 +19,7 @@ UTILISATION:
 
 import time
 
-from kociemba_tables import Tables, KociembaTablesConfig, get_pruning, set_pruning
+from kociemba_tables import Tables, KociembaTablesConfig, get_pruning
 
 # =============================================================================
 # CONSTANTES (identiques à solver_kociemba.py)
