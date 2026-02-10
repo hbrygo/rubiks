@@ -16,7 +16,7 @@ import argparse
 
 # Import des deux solvers
 from solver_kociemba import solve as solve_optimal
-from solver_kociemba import CubieCube, FaceCube, MOVE_CUBE
+from solver_kociemba import CubieCube, MOVE_CUBE
 from solver_kociemba_fast import solve_fast
 
 # Mouvements possibles
