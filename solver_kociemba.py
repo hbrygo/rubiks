@@ -728,7 +728,6 @@ class Search:
         n = 0
         busy = False
 
-        # Start at the pruning lower bound to skip impossible depths.
         init_estimate = max(
             get_pruning(self.tables.slice_flip_prun,
                         N_SLICE1 * self.flip[0] + self.slice_[0]),
