@@ -727,7 +727,14 @@ class Search:
         self.minDistPhase1[1] = 1
         n = 0
         busy = False
-        depth_phase1 = 1
+
+        init_estimate = max(
+            get_pruning(self.tables.slice_flip_prun,
+                        N_SLICE1 * self.flip[0] + self.slice_[0]),
+            get_pruning(self.tables.slice_twist_prun,
+                        N_SLICE1 * self.twist[0] + self.slice_[0])
+        )
+        depth_phase1 = max(1, init_estimate)
         
         t_start = time.time()
         
